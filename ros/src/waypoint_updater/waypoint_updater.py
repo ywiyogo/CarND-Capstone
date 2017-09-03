@@ -6,48 +6,46 @@ from styx_msgs.msg import Lane, Waypoint
 
 import math
 
-'''
-This node will publish waypoints from the car's current position to some `x` distance ahead.
-
-As mentioned in the doc, you should ideally first implement a version which does not care
-about traffic lights or obstacles.
-
-Once you have created dbw_node, you will update this node to use the status of traffic lights too.
-
-Please note that our simulator also provides the exact location of traffic lights and their
-current status in `/vehicle/traffic_lights` message. You can use this message to build this node
-as well as to verify your TL classifier.
-
-TODO (for Yousuf and Aaron): Stopline location for each traffic light.
-'''
-
-LOOKAHEAD_WPS = 200 # Number of waypoints we will publish. You can change this number
+LOOKAHEAD_WPS = 30 #200 # I am using 30 here because I am using loop-frequency = 30. Thus, it corresponds to the waypoints during the next second. 200 requires too much CPU.
 
 
 class WaypointUpdater(object):
+    
     def __init__(self):
         rospy.init_node('waypoint_updater')
-
-        rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
-        rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
-
-        # TODO: Add a subscriber for /traffic_waypoint and /obstacle_waypoint below
-
-
-        self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
-
-        # TODO: Add other member variables you need below
-
+        # queue_size: after receiving this number of messages, old messages will be deleted
+        # queue_size: all py-files seem to have queue_size=1, so I am using 1 here as well
+        # exception: the cpp-files in waypoint_follower have queue_size=10
+        # todo: test if cpu has less issues with different queue_size and loop-frequency
+        self.waypoints = None
+        rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb, queue_size=1)
+        rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb, queue_size=1)
+        self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1) # note: cpp-file really takes final_waypoints without backslash!
         rospy.spin()
 
+    def waypoints_cb(self, lane):
+        self.waypoints = lane.waypoints
+
     def pose_cb(self, msg):
-        # TODO: Implement
-        pass
+        if self.waypoints is not None:
+            pose = msg.pose
+            # iterate through list of waypoints and get the waypoint which is closest to my current position:
+            closest_wp_index = 0
+            closest_wp_dist = 1000000.1
+            for i, wp in enumerate(self.waypoints):
+                wp_dist = math.sqrt( (pose.position.x-wp.pose.pose.position.x)**2 + (pose.position.y-wp.pose.pose.position.y)**2 )
+                if wp_dist < closest_wp_dist:
+                    closest_wp_index = i
+                    closest_wp_dist = wp_dist
 
-    def waypoints_cb(self, waypoints):
-        # TODO: Implement
-        pass
+            # after the last waypoint in the waypoint list, the first waypoint will follow again. Now a list for 2 laps:
+            waypoints_2laps = self.waypoints + self.waypoints
+            lane = Lane()
+            lane.waypoints = waypoints_2laps[ closest_wp_index : closest_wp_index+LOOKAHEAD_WPS ] # get waypoints between closest wp and the last wp that should be predicted
+            self.final_waypoints_pub.publish(lane)
 
+    
+''' Functions not used yet:
     def traffic_cb(self, msg):
         # TODO: Callback for /traffic_waypoint message. Implement
         pass
@@ -69,7 +67,7 @@ class WaypointUpdater(object):
             dist += dl(waypoints[wp1].pose.pose.position, waypoints[i].pose.pose.position)
             wp1 = i
         return dist
-
+'''
 
 if __name__ == '__main__':
     try:
