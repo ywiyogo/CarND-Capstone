@@ -36,10 +36,7 @@ class DBWNode(object):
         rospy.Subscriber('/vehicle/dbw_enable',Bool,self.dbw_enable_cb)
         
         # Controller:
-        self.pid_throttle = pid.PID(kp=0.0, ki=0.0, kd=0.0, mn=0.0, mx=accel_limit) 
-        self.pid_brake = pid.PID(kp=0.0, ki=0.0, kd=0.0, mn=decel_limit, mx=0.0) 
-        self.pid_steer = pid.PID(kp=0.0, ki=0.0, kd=0.0, mn=-max_steer_angle, mx=max_steer_angle) 
-        self.controller = Controller(self.pid_throttle, self.pid_brake, self.pid_steer) 
+        self.controller = Controller(accel_limit, decel_limit, max_steer_angle)
 
         # Publisher:
         self.throttle_pub = rospy.Publisher('/vehicle/throttle_cmd',ThrottleCmd, queue_size=1)
@@ -57,10 +54,8 @@ class DBWNode(object):
 
     def dbw_enable_cb(self, msg):
         self.dbw_enable = bool(msg.data)
-        if self.dbw_enable is False: 
-            self.pid_throttle.reset()
-            self.pid_brake.reset()
-            self.pid_steer.reset()
+        if self.dbw_enable is False:
+            self.controller.reset()
 
     def loop(self):
         rate = rospy.Rate(30) # 30 is defined in cpp-file as loop-frequency # 50Hz
@@ -74,12 +69,16 @@ class DBWNode(object):
                 proposed_linear_velocity = 0.0
                 proposed_angular_velocity = 0.0
                 current_linear_velocity = 0.0
-                
-                throttle, brake, steer = self.controller.control( propsed_linear_velocity, proposed_angular_velocity, current_linear_velocity )
+
+                # Calculate errors
+                cross_track_error = 0 # TODO: calculate cte
+                speed_error = proposed_linear_velocity - current_linear_velocity
+
+                throttle, brake, steer = self.controller.control(cross_track_error, speed_error)
                 
                 # Publisher:
                 # self.publish(5.,0.,10.) # for testing purposes
-                self.publish( throttle, brake, steer )
+                self.publish(throttle, brake, steer)
 
             rate.sleep() # wiki.ros.org/rospy/Overview/Time#Sleeping_and_Rates --> wait until next rate
 
