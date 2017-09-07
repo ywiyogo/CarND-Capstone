@@ -6,12 +6,12 @@ import lowpass
 
 class Controller(object):
     def __init__(self, accel_limit, decel_limit, max_steer_angle):
+        # TODO: find good parameters for PID controllers
         self.pid_throttle = pid.PID(kp=1.0, ki=0.0, kd=0.0, mn=decel_limit, mx=accel_limit)
         self.pid_steer = pid.PID(kp=1.0, ki=0.0, kd=0.0, mn=-max_steer_angle, mx=max_steer_angle)
 
         self.filter_throttle = lowpass.LowPassFilter(tau=0.1, ts=1)
         self.filter_steer = lowpass.LowPassFilter(tau=0.1, ts=1)
-        pass
 
     def control(self, speed_error, cross_track_error):
         """

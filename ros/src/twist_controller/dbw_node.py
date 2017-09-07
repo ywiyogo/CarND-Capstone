@@ -3,7 +3,7 @@
 import rospy
 from std_msgs.msg import Bool
 from dbw_mkz_msgs.msg import ThrottleCmd, SteeringCmd, BrakeCmd, SteeringReport
-from geometry_msgs.msg import TwistStamped
+from geometry_msgs.msg import TwistStamped, PoseStamped
 import math
 
 from twist_controller import Controller
@@ -31,10 +31,12 @@ class DBWNode(object):
         self.dbw_enable = False
         self.twist_cmd = None
         self.current_velocity = None
+        self.current_pose = None
         rospy.Subscriber('/twist_cmd',TwistStamped,self.twist_cmd_cb, queue_size=1)
-        rospy.Subscriber('/current_velocity', TwistStamped, self.current_velocity_cb,queue_size=1)
+        rospy.Subscriber('/current_velocity', TwistStamped, self.current_velocity_cb, queue_size=1)
+        rospy.Subscriber('/current_pose', PoseStamped, self.current_pose_cb, queue_size=1)
         rospy.Subscriber('/vehicle/dbw_enable',Bool,self.dbw_enable_cb)
-        
+
         # Controller:
         self.controller = Controller(accel_limit, decel_limit, max_steer_angle)
 
@@ -42,7 +44,7 @@ class DBWNode(object):
         self.throttle_pub = rospy.Publisher('/vehicle/throttle_cmd',ThrottleCmd, queue_size=1)
         self.brake_pub = rospy.Publisher('/vehicle/brake_cmd',BrakeCmd, queue_size=1)
         self.steer_pub = rospy.Publisher('/vehicle/steering_cmd',SteeringCmd, queue_size=1)
-        
+
         # Execute loop for each message (this depends on the defined rate):
         self.loop()
 
@@ -51,6 +53,9 @@ class DBWNode(object):
 
     def current_velocity_cb(self, msg):
         self.current_velocity = msg.twist
+
+    def current_pose_cb(self, msg):
+        self.current_pose = msg.pose
 
     def dbw_enable_cb(self, msg):
         self.dbw_enable = bool(msg.data)
