@@ -58,14 +58,12 @@ class DBWNode(object):
         self.current_pose = msg.pose
 
     def dbw_enable_cb(self, msg):
-        #if type( msg.data ) == bool:
-            #self.dbw_enable = msg.data
-        #if self.dbw_enable is False:
-            #self.controller.reset()
-        #if type(msg.data) != bool:
-            #self.dbw_enable = True
-        self.dbw_enable = True
-
+        if msg.data:
+            self.dbw_enable = True
+        else:
+            self.dbw_enable = False
+            self.controller.reset()
+            
     def loop(self):
         rate = rospy.Rate(30) # 30 is defined in cpp-file as loop-frequency # 50Hz
         while not rospy.is_shutdown():
