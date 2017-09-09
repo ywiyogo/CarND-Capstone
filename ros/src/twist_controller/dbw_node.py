@@ -4,11 +4,12 @@ import rospy
 from std_msgs.msg import Bool
 from dbw_mkz_msgs.msg import ThrottleCmd, SteeringCmd, BrakeCmd, SteeringReport
 from geometry_msgs.msg import TwistStamped, PoseStamped
-import math
+from styx_msgs.msg import Lane
 
 from twist_controller import Controller
 from yaw_controller import YawController
 
+from dbw_common import get_cross_track_error
 
 class DBWNode(object):
     
@@ -33,19 +34,21 @@ class DBWNode(object):
         self.twist_cmd = None
         self.current_velocity = None
         self.current_pose = None
-        rospy.Subscriber('/twist_cmd',TwistStamped,self.twist_cmd_cb, queue_size=1)
+        self.final_waypoints = None
+        rospy.Subscriber('/twist_cmd', TwistStamped, self.twist_cmd_cb, queue_size=1)
         rospy.Subscriber('/current_velocity', TwistStamped, self.current_velocity_cb, queue_size=1)
         rospy.Subscriber('/current_pose', PoseStamped, self.current_pose_cb, queue_size=1)
-        rospy.Subscriber('/vehicle/dbw_enable',Bool,self.dbw_enable_cb)
+        rospy.Subscriber('/vehicle/dbw_enable', Bool, self.dbw_enable_cb)
+        rospy.Subscriber('/final_waypoints', Lane, self.final_waypoints_cb, queue_size=1)
 
         # Controller:
         self.speed_and_twist_controller = Controller(accel_limit, decel_limit, max_steer_angle)
         self.yaw_controller = YawController(wheel_base, steer_ratio, min_speed, max_lat_accel, max_steer_angle)
 
         # Publisher:
-        self.throttle_pub = rospy.Publisher('/vehicle/throttle_cmd',ThrottleCmd, queue_size=1)
-        self.brake_pub = rospy.Publisher('/vehicle/brake_cmd',BrakeCmd, queue_size=1)
-        self.steer_pub = rospy.Publisher('/vehicle/steering_cmd',SteeringCmd, queue_size=1)
+        self.throttle_pub = rospy.Publisher('/vehicle/throttle_cmd', ThrottleCmd, queue_size=1)
+        self.brake_pub = rospy.Publisher('/vehicle/brake_cmd', BrakeCmd, queue_size=1)
+        self.steer_pub = rospy.Publisher('/vehicle/steering_cmd', SteeringCmd, queue_size=1)
 
         # Execute loop for each message (this depends on the defined rate):
         self.loop()
@@ -55,6 +58,9 @@ class DBWNode(object):
 
     def current_velocity_cb(self, msg):
         self.current_velocity = msg.twist
+
+    def final_waypoints_cb(self, msg):
+        self.final_waypoints = msg.waypoints
 
     def current_pose_cb(self, msg):
         self.current_pose = msg.pose
@@ -76,8 +82,7 @@ class DBWNode(object):
                 current_linear_velocity = 0.0
 
                 # Calculate errors
-                cross_track_error = 0 # TODO: calculate cte
-                # cross_track_error = get_cross_track_error()
+                cross_track_error = get_cross_track_error(self.final_waypoints, self.current_pose)
                 speed_error = proposed_linear_velocity - current_linear_velocity
                 throttle, brake, steer_twist = self.speed_and_twist_controller.control(cross_track_error, speed_error)
 
