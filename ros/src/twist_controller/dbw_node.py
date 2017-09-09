@@ -12,7 +12,7 @@ from yaw_controller import YawController
 from dbw_common import get_cross_track_error, get_cross_track_error_from_frenet
 
 class DBWNode(object):
-    
+
     def __init__(self):
         rospy.init_node('dbw_node')
 
@@ -46,8 +46,17 @@ class DBWNode(object):
         rospy.Subscriber('/final_waypoints', Lane, self.final_waypoints_cb, queue_size=1)
 
         # Controller:
-        self.speed_and_twist_controller = Controller(controller_rate, accel_limit, decel_limit, max_steer_angle)
-        self.yaw_controller = YawController(wheel_base, steer_ratio, min_speed, max_lat_accel, max_steer_angle)
+        self.speed_and_twist_controller = Controller(controller_rate,
+                                                     accel_limit,
+                                                     decel_limit,
+                                                     max_steer_angle,
+                                                     vehicle_mass,
+                                                     wheel_radius)
+        self.yaw_controller = YawController(wheel_base,
+                                            steer_ratio,
+                                            min_speed,
+                                            max_lat_accel,
+                                            max_steer_angle)
 
         # Publisher:
         self.throttle_pub = rospy.Publisher('/vehicle/throttle_cmd', ThrottleCmd, queue_size=1)
@@ -85,13 +94,17 @@ class DBWNode(object):
                 current_linear_velocity = self.current_velocity.linear.x
 
                 # Calculate errors
-                cross_track_error = get_cross_track_error_from_frenet(self.final_waypoints, self.current_pose)
+                cross_track_error = get_cross_track_error_from_frenet(self.final_waypoints,
+                                                                      self.current_pose)
                 speed_error = proposed_linear_velocity - current_linear_velocity
-                throttle, brake, steer_twist = self.speed_and_twist_controller.control(cross_track_error, speed_error)
+                throttle, brake, steer_twist = self.speed_and_twist_controller.control(cross_track_error,
+                                                                                       speed_error)
 
                 linear_velocity = self.twist_cmd.linear.x
                 angular_velocity = self.twist_cmd.angular.z
-                steer_yaw = self.yaw_controller.get_steering(linear_velocity, angular_velocity, current_linear_velocity)
+                steer_yaw = self.yaw_controller.get_steering(linear_velocity,
+                                                             angular_velocity,
+                                                             current_linear_velocity)
                 steer = steer_twist + steer_yaw
 
                 # Publisher:
@@ -112,12 +125,12 @@ class DBWNode(object):
         bcmd.pedal_cmd_type = BrakeCmd.CMD_TORQUE
         bcmd.pedal_cmd = brake
         self.brake_pub.publish(bcmd)
-    
+
         scmd = SteeringCmd()
         scmd.enable = True
         scmd.steering_wheel_angle_cmd = steer
         self.steer_pub.publish(scmd)
 
-        
+
 if __name__ == '__main__':
     DBWNode()
