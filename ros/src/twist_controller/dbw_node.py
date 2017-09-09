@@ -1,14 +1,13 @@
 #!/usr/bin/env python
 
 import rospy
-from std_msgs.msg import Bool
-from dbw_mkz_msgs.msg import ThrottleCmd, SteeringCmd, BrakeCmd, SteeringReport
+from dbw_mkz_msgs.msg import ThrottleCmd, SteeringCmd, BrakeCmd
 from geometry_msgs.msg import TwistStamped, PoseStamped
-import math
+from std_msgs.msg import Bool
 
 from twist_controller import Controller
+from yaw_controller import YawController
 
-import pid
 
 class DBWNode(object):
     
@@ -26,6 +25,7 @@ class DBWNode(object):
         steer_ratio = rospy.get_param('~steer_ratio', 14.8)
         max_lat_accel = rospy.get_param('~max_lat_accel', 3.)
         max_steer_angle = rospy.get_param('~max_steer_angle', 8.)
+        min_speed = 0  # TODO: read from parameter server
 
         # Subscriber:
         self.dbw_enable = False
@@ -38,7 +38,8 @@ class DBWNode(object):
         rospy.Subscriber('/vehicle/dbw_enable',Bool,self.dbw_enable_cb)
 
         # Controller:
-        self.controller = Controller(accel_limit, decel_limit, max_steer_angle)
+        self.speed_and_twist_controller = Controller(accel_limit, decel_limit, max_steer_angle)
+        self.yaw_controller = YawController(wheel_base, steer_ratio, min_speed, max_lat_accel, max_steer_angle)
 
         # Publisher:
         self.throttle_pub = rospy.Publisher('/vehicle/throttle_cmd',ThrottleCmd, queue_size=1)
@@ -60,30 +61,31 @@ class DBWNode(object):
     def dbw_enable_cb(self, msg):
         self.dbw_enable = bool(msg.data)
         if self.dbw_enable is False:
-            self.controller.reset()
+            self.speed_and_twist_controller.reset()
 
     def loop(self):
         rate = rospy.Rate(30) # 30 is defined in cpp-file as loop-frequency # 50Hz
         while not rospy.is_shutdown():
             if self.dbw_enable:
-                # throttle, brake, steer = self.controller.control(<proposed linear velocity>,
-                #                                                     <proposed angular velocity>,
-                #                                                     <current linear velocity>,
-                #                                                     <dbw status>, --> already checked!
-                #                                                     <any other argument you need>)
+
                 proposed_linear_velocity = 0.0
                 proposed_angular_velocity = 0.0
                 current_linear_velocity = 0.0
 
                 # Calculate errors
                 cross_track_error = 0 # TODO: calculate cte
+                # cross_track_error = get_cross_track_error()
                 speed_error = proposed_linear_velocity - current_linear_velocity
+                throttle, brake, steer_twist = self.speed_and_twist_controller.control(cross_track_error, speed_error)
 
-                throttle, brake, steer = self.controller.control(cross_track_error, speed_error)
-                
+                linear_velocity = 0  # TODO: check wich signals to read out
+                angular_velocity = 0  # TODO: check wich signals to read out
+                steer_yaw = self.yaw_controller.get_steering(linear_velocity, angular_velocity, current_linear_velocity)
+                steer = steer_twist + steer_yaw
+
                 # Publisher:
-                # self.publish(5.,0.,10.) # for testing purposes
-                self.publish(throttle, brake, steer)
+                self.publish(5., 0., 10.)  # for testing purposes
+                # self.publish(throttle, brake, steer)
 
             rate.sleep() # wiki.ros.org/rospy/Overview/Time#Sleeping_and_Rates --> wait until next rate
 
