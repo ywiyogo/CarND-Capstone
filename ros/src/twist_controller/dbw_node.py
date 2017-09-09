@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 
 import rospy
-from dbw_mkz_msgs.msg import ThrottleCmd, SteeringCmd, BrakeCmd
-from geometry_msgs.msg import TwistStamped, PoseStamped
 from std_msgs.msg import Bool
+from dbw_mkz_msgs.msg import ThrottleCmd, SteeringCmd, BrakeCmd, SteeringReport
+from geometry_msgs.msg import TwistStamped, PoseStamped
+import math
 
 from twist_controller import Controller
 from yaw_controller import YawController
@@ -59,8 +60,10 @@ class DBWNode(object):
         self.current_pose = msg.pose
 
     def dbw_enable_cb(self, msg):
-        self.dbw_enable = bool(msg.data)
-        if self.dbw_enable is False:
+        if msg.data:
+            self.dbw_enable = True
+        else:
+            self.dbw_enable = False
             self.speed_and_twist_controller.reset()
 
     def loop(self):
