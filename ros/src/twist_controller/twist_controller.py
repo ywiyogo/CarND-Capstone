@@ -11,7 +11,7 @@ class Controller(object):
         self.controller_rate = controller_rate
         self.accel_limit = accel_limit
         self.decel_limit = decel_limit
-        self.vehicle_mass
+        self.vehicle_mass = vehicle_mass
 
         # TODO: find good parameters for PID controllers
         self.pid_throttle = pid.PID(kp=1.0, ki=0.0, kd=0.0, mn=-1, mx=1)
