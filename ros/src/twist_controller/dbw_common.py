@@ -1,32 +1,29 @@
 #!/usr/bin/env python
-from geometry_msgs.msg import PoseStamped, TwistStamped
-from src.styx_msgs.msg import Lane, Waypoint
+
+import numpy as np
+
 def get_cross_track_error(waypoints, pose):
 
-    cte = 0
+    current_pose_x = pose.position.x
+    current_pose_y = pose.position.y
 
+    wpts_x = []
+    wpts_y = []
 
+    for wp in waypoints:
+        wpts_x.append(wp.pose.pose.position.x)
+        wpts_y.append(wp.pose.pose.position.y)
+
+    wpts_dist = np.sqrt((np.array(wpts_x) - current_pose_x) ** 2 + (np.array(wpts_y) - current_pose_y) ** 2)
+
+    cte = wpts_dist.min()
 
     return cte
 
 
 def test_get_cross_track_error():
-    list = []
 
-    Waypoint()
-    # pose = PoseStamped()
-    # twist = TwistStamped()
-    # pose.position.x =
-    #
-    #
-    # for i in range(5):
-    #     pose = Pose()
-    #     if i > 0:
-    #         pose.position.x = list[i - 1].position.x + 1
-    #     list.append(pose)
-    #
-    # for item in list:
-    #     print item.position.x
+    pass
 
 
 if __name__ == "__main__":
