@@ -1,5 +1,6 @@
 import pid
 import lowpass
+import rospy
 
 GAS_DENSITY = 2.858
 ONE_MPH = 0.44704
@@ -12,6 +13,7 @@ class Controller(object):
         self.accel_limit = accel_limit
         self.decel_limit = decel_limit
         self.vehicle_mass = vehicle_mass
+	self.wheel_radius = wheel_radius
 
         # TODO: find good parameters for PID controllers
         self.pid_throttle = pid.PID(kp=1.0, ki=0.0, kd=0.0, mn=-1, mx=1)
@@ -30,14 +32,19 @@ class Controller(object):
         """
         sample_time = self.controller_rate
 
+	rospy.loginfo('Error speed: %s, Error cte: %s', speed_error, cross_track_error)
         steering_angle = self.pid_steer.step(error=cross_track_error, sample_time=sample_time)
+	rospy.loginfo('Steering angle PID output: %s', steering_angle)
         steering_angle_filtered = self.filter_steer.filt(steering_angle)
+	rospy.loginfo('Steering angle PID output filtered: %s', steering_angle_filtered)
 
         throttle = self.pid_throttle.step(error=speed_error, sample_time=sample_time)
-        throttle_filtered = self.filter_throttle.filt(throttle)
+	rospy.loginfo('Throttle PID output: %s', throttle)
+	throttle_filtered = self.filter_throttle.filt(throttle)
+	rospy.loginfo('Throttle PID output filtered %s', throttle_filtered)
 
         throttle_out = max(0, throttle_filtered) # TODO: does acceleration limit needs to be enforced here?
-        brake_out = - min(0, throttle_filtered) * self.decel_limit * self.vehicle_mass * wheel_radius
+        brake_out = - min(0, throttle_filtered) * self.decel_limit * self.vehicle_mass * self.wheel_radius
         steering_out = steering_angle_filtered
 
         return throttle_out, brake_out, steering_out

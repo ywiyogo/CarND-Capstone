@@ -34,7 +34,7 @@ class DBWNode(object):
         self.controller_rate = controller_rate
 
         # Subscriber:
-        self.dbw_enable = False
+        self.dbw_enabled = False
         self.twist_cmd = None
         self.current_velocity = None
         self.current_pose = None
@@ -42,7 +42,7 @@ class DBWNode(object):
         rospy.Subscriber('/twist_cmd', TwistStamped, self.twist_cmd_cb, queue_size=1)
         rospy.Subscriber('/current_velocity', TwistStamped, self.current_velocity_cb, queue_size=1)
         rospy.Subscriber('/current_pose', PoseStamped, self.current_pose_cb, queue_size=1)
-        rospy.Subscriber('/vehicle/dbw_enable', Bool, self.dbw_enable_cb)
+        rospy.Subscriber('/vehicle/dbw_enabled', Bool, self.dbw_enabled_cb)
         rospy.Subscriber('/final_waypoints', Lane, self.final_waypoints_cb, queue_size=1)
 
         # Controller:
@@ -78,27 +78,26 @@ class DBWNode(object):
     def current_pose_cb(self, msg):
         self.current_pose = msg.pose
 
-    def dbw_enable_cb(self, msg):
+    def dbw_enabled_cb(self, msg):
         if msg.data:
-            self.dbw_enable = True
+            self.dbw_enabled = True
         else:
-            self.dbw_enable = False
+            self.dbw_enabled = False
             self.speed_and_twist_controller.reset()
 
     def loop(self):
         rate = rospy.Rate(self.controller_rate)
         while not rospy.is_shutdown():
-            if self.dbw_enable:
+	    rospy.loginfo('dbw_enabled: %s', self.dbw_enabled)
+            if self.dbw_enabled:
 
                 proposed_linear_velocity = self.final_waypoints[0].twist.twist.linear.x
                 current_linear_velocity = self.current_velocity.linear.x
 
                 # Calculate errors
-                cross_track_error = get_cross_track_error_from_frenet(self.final_waypoints,
-                                                                      self.current_pose)
+                cross_track_error = get_cross_track_error_from_frenet(self.final_waypoints,self.current_pose)
                 speed_error = proposed_linear_velocity - current_linear_velocity
-                throttle, brake, steer_twist = self.speed_and_twist_controller.control(cross_track_error,
-                                                                                       speed_error)
+                throttle, brake, steer_twist = self.speed_and_twist_controller.control(speed_error, cross_track_error)
 
                 linear_velocity = self.twist_cmd.linear.x
                 angular_velocity = self.twist_cmd.angular.z
