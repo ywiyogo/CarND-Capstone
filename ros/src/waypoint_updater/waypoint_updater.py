@@ -1,16 +1,59 @@
 #!/usr/bin/env python
 
+
 import rospy
+
 from geometry_msgs.msg import PoseStamped
 from styx_msgs.msg import Lane, Waypoint
 
+import scipy.spatial
 import math
+import numpy as np
 
-LOOKAHEAD_WPS = 30 #200 # I am using 30 here because I am using loop-frequency = 30. Thus, it corresponds to the waypoints during the next second. 200 requires too much CPU.
+LOOKAHEAD_WPS = 30  # 200 requires too much CPU.
+
+
+def constant_v_waypoints(waypoints, velocity, incremental=True):
+    final_waypoints = []
+
+    if incremental:
+        forward_velocity = velocity
+    else:
+        forward_velocity = - velocity
+
+
+    x = [waypoint.pose.pose.position.x for waypoint in waypoints]
+    y = [waypoint.pose.pose.position.y for waypoint in waypoints]
+    delta_x = np.diff(x)
+    delta_y = np.diff(y)
+    delta_s = np.sqrt(np.square(delta_x) + np.square(delta_y))
+
+    last_waypoint = waypoints[0]
+    for index, waypoint in enumerate(waypoints[1:]):
+        velocity_x = forward_velocity * delta_x[index] / delta_s[index]
+        velocity_y = forward_velocity * delta_y[index] / delta_s[index]
+        last_waypoint.twist.twist.linear.x = velocity_x
+        last_waypoint.twist.twist.linear.y = velocity_y
+        final_waypoints.append(last_waypoint)
+
+        last_waypoint = waypoint
+
+    return final_waypoints
+
+
+def get_closest_waypoint_index(waypoints, pose):
+
+    waypoint_coordinates = [[waypoint.pose.pose.position.x,
+                             waypoint.pose.pose.position.y] for waypoint in waypoints]
+
+    pose_coordinates = [pose.pose.position.x, pose.pose.position.y]
+    _, index = scipy.spatial.KDTree(waypoint_coordinates).query(pose_coordinates)
+
+    return index
 
 
 class WaypointUpdater(object):
-    
+
     def __init__(self):
         rospy.init_node('waypoint_updater')
         # queue_size: after receiving this number of messages, old messages will be deleted
@@ -20,32 +63,27 @@ class WaypointUpdater(object):
         self.waypoints = None
         rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb, queue_size=1)
         rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb, queue_size=1)
-        self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1) # note: cpp-file really takes final_waypoints without backslash!
+        self.final_waypoints_pub = rospy.Publisher('/final_waypoints', Lane, queue_size=1)
         rospy.spin()
 
     def waypoints_cb(self, lane):
+
         self.waypoints = lane.waypoints
 
-    def pose_cb(self, msg):
-        if self.waypoints is not None:
-            pose = msg.pose
-            # iterate through list of waypoints and get the waypoint which is closest to my current position:
-            closest_wp_index = 0
-            closest_wp_dist = 1000000.1
-            for i, wp in enumerate(self.waypoints):
-                wp_dist = math.sqrt( (pose.position.x-wp.pose.pose.position.x)**2 + (pose.position.y-wp.pose.pose.position.y)**2 )
-                if wp_dist < closest_wp_dist:
-                    closest_wp_index = i
-                    closest_wp_dist = wp_dist
+    def pose_cb(self, pose):
 
-            # after the last waypoint in the waypoint list, the first waypoint will follow again. Now a list for 2 laps:
+        velocity = 20
+        if self.waypoints is not None:
+            closest_wp_index = get_closest_waypoint_index(self.waypoints, pose)
             waypoints_2laps = self.waypoints + self.waypoints
             lane = Lane()
-            lane.waypoints = waypoints_2laps[ closest_wp_index : closest_wp_index+LOOKAHEAD_WPS ] # get waypoints between closest wp and the last wp that should be predicted
+            lane.waypoints = constant_v_waypoints(waypoints_2laps[closest_wp_index:
+                                                                  closest_wp_index+LOOKAHEAD_WPS],
+                                                  velocity)
             self.final_waypoints_pub.publish(lane)
 
-    
-''' Functions not used yet:
+
+    '''
     def traffic_cb(self, msg):
         # TODO: Callback for /traffic_waypoint message. Implement
         pass
@@ -67,7 +105,7 @@ class WaypointUpdater(object):
             dist += dl(waypoints[wp1].pose.pose.position, waypoints[i].pose.pose.position)
             wp1 = i
         return dist
-'''
+    '''
 
 if __name__ == '__main__':
     try:

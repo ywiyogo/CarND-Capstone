@@ -1,0 +1,284 @@
+{
+    "header": {
+        "stamp": {
+            "secs": 0,
+            "nsecs": 0
+        },
+        "frame_id": "",
+        "seq": 31
+    },
+    "lights": [
+        {
+            "header": {
+                "stamp": {
+                    "secs": 1504979488,
+                    "nsecs": 648359060
+                },
+                "frame_id": "world",
+                "seq": 0
+            },
+            "state": 0,
+            "pose": {
+                "header": {
+                    "stamp": {
+                        "secs": 1504979488,
+                        "nsecs": 648375988
+                    },
+                    "frame_id": "world",
+                    "seq": 0
+                },
+                "pose": {
+                    "position": {
+                        "y": 1186.299,
+                        "x": 1172.183,
+                        "z": 5.576891
+                    },
+                    "orientation": {
+                        "y": 0.0,
+                        "x": 0.0,
+                        "z": 0.0006161994231501631,
+                        "w": 0.9999998101491174
+                    }
+                }
+            }
+        },
+        {
+            "header": {
+                "stamp": {
+                    "secs": 1504979488,
+                    "nsecs": 648426055
+                },
+                "frame_id": "world",
+                "seq": 0
+            },
+            "state": 0,
+            "pose": {
+                "header": {
+                    "stamp": {
+                        "secs": 1504979488,
+                        "nsecs": 648442983
+                    },
+                    "frame_id": "world",
+                    "seq": 0
+                },
+                "pose": {
+                    "position": {
+                        "y": 1156.953,
+                        "x": 1584.065,
+                        "z": 5.576705
+                    },
+                    "orientation": {
+                        "y": 0.0,
+                        "x": 0.0,
+                        "z": -0.0008084517046960224,
+                        "w": 0.9999996732028672
+                    }
+                }
+            }
+        },
+        {
+            "header": {
+                "stamp": {
+                    "secs": 1504979488,
+                    "nsecs": 648479938
+                },
+                "frame_id": "world",
+                "seq": 0
+            },
+            "state": 0,
+            "pose": {
+                "header": {
+                    "stamp": {
+                        "secs": 1504979488,
+                        "nsecs": 648497104
+                    },
+                    "frame_id": "world",
+                    "seq": 0
+                },
+                "pose": {
+                    "position": {
+                        "y": 1550.636,
+                        "x": 2126.353,
+                        "z": 5.576704
+                    },
+                    "orientation": {
+                        "y": 0.0,
+                        "x": 0.0,
+                        "z": 0.01111912558294965,
+                        "w": 0.999938180612317
+                    }
+                }
+            }
+        },
+        {
+            "header": {
+                "stamp": {
+                    "secs": 1504979488,
+                    "nsecs": 648533105
+                },
+                "frame_id": "world",
+                "seq": 0
+            },
+            "state": 0,
+            "pose": {
+                "header": {
+                    "stamp": {
+                        "secs": 1504979488,
+                        "nsecs": 648550033
+                    },
+                    "frame_id": "world",
+                    "seq": 0
+                },
+                "pose": {
+                    "position": {
+                        "y": 1819.328,
+                        "x": 2178.291,
+                        "z": 5.576704
+                    },
+                    "orientation": {
+                        "y": 0.0,
+                        "x": 0.0,
+                        "z": 0.01215394706119401,
+                        "w": 0.9999261380576235
+                    }
+                }
+            }
+        },
+        {
+            "header": {
+                "stamp": {
+                    "secs": 1504979488,
+                    "nsecs": 648586034
+                },
+                "frame_id": "world",
+                "seq": 0
+            },
+            "state": 0,
+            "pose": {
+                "header": {
+                    "stamp": {
+                        "secs": 1504979488,
+                        "nsecs": 648602962
+                    },
+                    "frame_id": "world",
+                    "seq": 0
+                },
+                "pose": {
+                    "position": {
+                        "y": 2946.97,
+                        "x": 1469.499,
+                        "z": 5.576707
+                    },
+                    "orientation": {
+                        "y": 0.0,
+                        "x": 0.0,
+                        "z": -0.02641810694050238,
+                        "w": 0.999650980905676
+                    }
+                }
+            }
+        },
+        {
+            "header": {
+                "stamp": {
+                    "secs": 1504979488,
+                    "nsecs": 648638963
+                },
+                "frame_id": "world",
+                "seq": 0
+            },
+            "state": 0,
+            "pose": {
+                "header": {
+                    "stamp": {
+                        "secs": 1504979488,
+                        "nsecs": 648655891
+                    },
+                    "frame_id": "world",
+                    "seq": 0
+                },
+                "pose": {
+                    "position": {
+                        "y": 2905.59,
+                        "x": 797.9147,
+                        "z": 5.576708
+                    },
+                    "orientation": {
+                        "y": 0.0,
+                        "x": 0.0,
+                        "z": -0.025332439602028148,
+                        "w": 0.9996790822578062
+                    }
+                }
+            }
+        },
+        {
+            "header": {
+                "stamp": {
+                    "secs": 1504979488,
+                    "nsecs": 648691892
+                },
+                "frame_id": "world",
+                "seq": 0
+            },
+            "state": 0,
+            "pose": {
+                "header": {
+                    "stamp": {
+                        "secs": 1504979488,
+                        "nsecs": 648709058
+                    },
+                    "frame_id": "world",
+                    "seq": 0
+                },
+                "pose": {
+                    "position": {
+                        "y": 2279.929,
+                        "x": 160.8088,
+                        "z": 5.606704
+                    },
+                    "orientation": {
+                        "y": 0.0,
+                        "x": 0.0,
+                        "z": -0.016577172289522196,
+                        "w": 0.9998625892385831
+                    }
+                }
+            }
+        },
+        {
+            "header": {
+                "stamp": {
+                    "secs": 1504979488,
+                    "nsecs": 648745059
+                },
+                "frame_id": "world",
+                "seq": 0
+            },
+            "state": 0,
+            "pose": {
+                "header": {
+                    "stamp": {
+                        "secs": 1504979488,
+                        "nsecs": 648761987
+                    },
+                    "frame_id": "world",
+                    "seq": 0
+                },
+                "pose": {
+                    "position": {
+                        "y": 1553.731,
+                        "x": 363.378,
+                        "z": 5.606708
+                    },
+                    "orientation": {
+                        "y": 0.0,
+                        "x": 0.0,
+                        "z": -0.010369102605966535,
+                        "w": 0.999946239410473
+                    }
+                }
+            }
+        }
+    ]
+}
