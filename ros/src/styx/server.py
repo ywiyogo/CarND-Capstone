@@ -11,11 +11,7 @@ from conf import conf
 
 sio = socketio.Server()
 app = Flask(__name__)
-bridge = Bridge(conf)
-# Changed to only send latest message instead of queuing and sending whole queue
-# Based on: https://github.com/amakurin/CarND-Capstone/commit/9809bc60d51c06174f8c8bfe6c40c88ec1c39d50
-
-msgs = {}
+msgs = []
 
 dbw_enable = False
 
@@ -26,7 +22,7 @@ def connect(sid, environ):
 def send(topic, data):
     msgs[topic] = data
 
-bridge.register_server(send)
+bridge = Bridge(conf, send)
 
 @sio.on('telemetry')
 def telemetry(sid, data):
