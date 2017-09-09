@@ -5,7 +5,9 @@ import lowpass
 
 
 class Controller(object):
-    def __init__(self, accel_limit, decel_limit, max_steer_angle):
+    def __init__(self, controller_rate, accel_limit, decel_limit, max_steer_angle):
+
+        self.controller_rate = controller_rate
         # TODO: find good parameters for PID controllers
         self.pid_throttle = pid.PID(kp=1.0, ki=0.0, kd=0.0, mn=decel_limit, mx=accel_limit)
         self.pid_steer = pid.PID(kp=1.0, ki=0.0, kd=0.0, mn=-max_steer_angle, mx=max_steer_angle)
@@ -18,9 +20,9 @@ class Controller(object):
 
         :param speed_error:
         :param cross_track_error: The cross track error (cte) is the current y position of the vehicle
-        :return: throttle, brake, steer
+        :return: throttle [1], brake [Nm], steer [rad]
         """
-        sample_time = 0.1 # TODO: adjust to real system cycle time
+        sample_time = self.controller_rate
 
         steering_angle = self.pid_steer.step(error=cross_track_error, sample_time=sample_time)
         steering_angle_filtered = self.filter_steer.filt(steering_angle)
@@ -29,7 +31,7 @@ class Controller(object):
         throttle_filtered = self.filter_throttle.filt(throttle)
 
         throttle_out = max(0, throttle_filtered)
-        brake_out = min(0, throttle_filtered)
+        brake_out = min(0, throttle_filtered) # TODO: brake_out should be in [Nm]
         steering_out = steering_angle_filtered
 
         return throttle_out, brake_out, steering_out

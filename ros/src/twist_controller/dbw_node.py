@@ -9,7 +9,7 @@ from styx_msgs.msg import Lane
 from twist_controller import Controller
 from yaw_controller import YawController
 
-from dbw_common import get_cross_track_error
+from dbw_common import get_cross_track_error, get_cross_track_error_from_frenet
 
 class DBWNode(object):
     
@@ -28,6 +28,10 @@ class DBWNode(object):
         max_lat_accel = rospy.get_param('~max_lat_accel', 3.)
         max_steer_angle = rospy.get_param('~max_steer_angle', 8.)
         min_speed = 0  # TODO: read from parameter server
+        controller_rate = 30  # TODO: read from parameter server, 30 is defined in cpp-file as loop-frequency # 50Hz
+
+
+        self.controller_rate = controller_rate
 
         # Subscriber:
         self.dbw_enable = False
@@ -42,7 +46,7 @@ class DBWNode(object):
         rospy.Subscriber('/final_waypoints', Lane, self.final_waypoints_cb, queue_size=1)
 
         # Controller:
-        self.speed_and_twist_controller = Controller(accel_limit, decel_limit, max_steer_angle)
+        self.speed_and_twist_controller = Controller(controller_rate, accel_limit, decel_limit, max_steer_angle)
         self.yaw_controller = YawController(wheel_base, steer_ratio, min_speed, max_lat_accel, max_steer_angle)
 
         # Publisher:
@@ -73,27 +77,26 @@ class DBWNode(object):
             self.speed_and_twist_controller.reset()
 
     def loop(self):
-        rate = rospy.Rate(30) # 30 is defined in cpp-file as loop-frequency # 50Hz
+        rate = rospy.Rate(self.controller_rate)
         while not rospy.is_shutdown():
             if self.dbw_enable:
 
-                proposed_linear_velocity = 0.0
-                proposed_angular_velocity = 0.0
-                current_linear_velocity = 0.0
+                proposed_linear_velocity = self.final_waypoints[0].twist.twist.linear.x
+                current_linear_velocity = self.current_velocity.linear.x
 
                 # Calculate errors
-                cross_track_error = get_cross_track_error(self.final_waypoints, self.current_pose)
+                cross_track_error = get_cross_track_error_from_frenet(self.final_waypoints, self.current_pose)
                 speed_error = proposed_linear_velocity - current_linear_velocity
                 throttle, brake, steer_twist = self.speed_and_twist_controller.control(cross_track_error, speed_error)
 
-                linear_velocity = 0  # TODO: check wich signals to read out
-                angular_velocity = 0  # TODO: check wich signals to read out
+                linear_velocity = self.twist_cmd.linear.x
+                angular_velocity = self.twist_cmd.angular.z
                 steer_yaw = self.yaw_controller.get_steering(linear_velocity, angular_velocity, current_linear_velocity)
                 steer = steer_twist + steer_yaw
 
                 # Publisher:
-                self.publish(5., 0., 10.)  # for testing purposes
-                # self.publish(throttle, brake, steer)
+                # self.publish(5., 0., 10.)  # for testing purposes
+                self.publish(throttle, brake, steer)
 
             rate.sleep() # wiki.ros.org/rospy/Overview/Time#Sleeping_and_Rates --> wait until next rate
 
