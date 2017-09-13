@@ -149,31 +149,31 @@ def net_preloaded(preloaded, input_image, pooling, needs_classifier=False, keep_
         x = _act_layer(net, layer_name + '_actv', x)
         
         # Global Average Pooling
-	x = _pool_layer(net, 'classifier_pool', x, 'avg', size=(13, 13), stride=(1, 1), padding='VALID')
+        x = _pool_layer(net, 'classifier_pool', x, 'avg', size=(13, 13), stride=(1, 1), padding='VALID')
 
-	# Flatten. Input = 1x1x1x1000. Output = 1x1000.
-	fc0 = flatten(x)
+        # Flatten. Input = 1x1x1x1000. Output = 1x1000.
+        fc0 = flatten(x)
 
-	# Fully Connected. Input = 1000. Output = 100.
-	fc1_W = tf.Variable(tf.truncated_normal(shape=(1000, 100), mean = 0, stddev = 0.1))
-	fc1_b = tf.Variable(tf.zeros(100))
-	fc1   = tf.matmul(fc0, fc1_W) + fc1_b
-	# Activation.
-	fc1 = tf.nn.relu(fc1)
+        # Fully Connected. Input = 1000. Output = 100.
+        fc1_W = tf.Variable(tf.truncated_normal(shape=(1000, 100), mean = 0, stddev = 0.1))
+        fc1_b = tf.Variable(tf.zeros(100))
+        fc1   = tf.matmul(fc0, fc1_W) + fc1_b
+        # Activation.
+        fc1 = tf.nn.relu(fc1)
 
-	# Fully Connected. Input = 100. Output = 20.
-	fc2_W = tf.Variable(tf.truncated_normal(shape=(100, 20), mean = 0, stddev = 0.1))
-	fc2_b = tf.Variable(tf.zeros(20))
-	fc2   = tf.matmul(fc1, fc2_W) + fc2_b
-	# Activation.
-	fc2 = tf.nn.relu(fc2)
+        # Fully Connected. Input = 100. Output = 20.
+        fc2_W = tf.Variable(tf.truncated_normal(shape=(100, 20), mean = 0, stddev = 0.1))
+        fc2_b = tf.Variable(tf.zeros(20))
+        fc2   = tf.matmul(fc1, fc2_W) + fc2_b
+        # Activation.
+        fc2 = tf.nn.relu(fc2)
 
-	# Fully Connected. Input = 20. Output = 4.
-	fc3_W = tf.Variable(tf.truncated_normal(shape=(20, 4), mean = 0, stddev = 0.1))
-	fc3_b = tf.Variable(tf.zeros(4))
-	fc3   = tf.matmul(fc2, fc3_W) + fc3_b
-	# Activation.
-	logits = tf.nn.relu(fc3)
+        # Fully Connected. Input = 20. Output = 4.
+        fc3_W = tf.Variable(tf.truncated_normal(shape=(20, 4), mean = 0, stddev = 0.1))
+        fc3_b = tf.Variable(tf.zeros(4))
+        fc3   = tf.matmul(fc2, fc3_W) + fc3_b
+        # Activation.
+        logits = tf.nn.relu(fc3)
 
         net['classifier_actv'] = logits
 
@@ -257,38 +257,38 @@ def main():
     # Simple classification
     with g.as_default(), tf.Session(config=config) as sess:
 
-	# Placeholders
-	correct_label = tf.placeholder(dtype=tf.string)
-	image         = tf.placeholder(dtype=get_dtype_tf(), shape=img_content_shape, name="image_placeholder")
-	keep_prob     = tf.placeholder(get_dtype_tf())
+        # Placeholders
+        correct_label = tf.placeholder(dtype=tf.string)
+        image         = tf.placeholder(dtype=get_dtype_tf(), shape=img_content_shape, name="image_placeholder")
+        keep_prob     = tf.placeholder(get_dtype_tf())
 
-	# SqueezeNet model
-	sqznet, logits = net_preloaded(data, image, 'max', True, keep_prob)
+        # SqueezeNet model
+        sqznet, logits = net_preloaded(data, image, 'max', True, keep_prob)
 
-	# Loss and Training operations
-	cross_entropy_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=correct_label, logits=logits))
-	training_operation = tf.train.AdamOptimizer(learning_rate = learning_rate).minimize(cross_entropy_loss)
+        # Loss and Training operations
+        cross_entropy_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=correct_label, logits=logits))
+        training_operation = tf.train.AdamOptimizer(learning_rate = learning_rate).minimize(cross_entropy_loss)
 
 
-	# Initialize variables
-	sess.run(tf.global_variables_initializer())
+        # Initialize variables
+        sess.run(tf.global_variables_initializer())
 
 
 ###<--NEW_start-->###
-	print
-	print('Training...')
-	for epoch in range(epochs):
-	    gen = get_batches_fn(batch_size)
-	    for images, labels in gen:
-		print('images {}, correct_label {}, keep_prob {}, learning_rate {}'.format(images.dtype, labels.dtype, kp.dtype, learning_rate.dtype))
+        print
+        print('Training...')
+        for epoch in range(epochs):
+            gen = get_batches_fn(batch_size)
+            for images, labels in gen:
+                print('images {}, correct_label {}, keep_prob {}, learning_rate {}'.format(images.dtype, labels.dtype, kp.dtype, learning_rate.dtype))
 
-		_, loss = sess.run([training_operation, cross_entropy_loss],
+                _, loss = sess.run([training_operation, cross_entropy_loss],
                                    feed_dict={image: images,
                                               correct_label: labels,
                                               keep_prob: kp,
                                               learning_rate: learning_rate}
                                   )
-		print('Epoch {}: loss = {}'.format(epoch, loss))
+                print('Epoch {}: loss = {}'.format(epoch, loss))
 ###<--NEW_end-->###
 
 

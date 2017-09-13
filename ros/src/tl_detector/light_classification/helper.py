@@ -40,10 +40,10 @@ def maybe_download_LARA_dataset(data_dir):
         if os.path.exists(LARA_path):
             shutil.rmtree(LARA_path)
 
-	# Download LARA Dataset
-	print('Downloading LARA dataset...')
-	with DLProgress(unit='B', unit_scale=True, miniters=1) as pbar:
-	urlopen(
+        # Download LARA Dataset
+        print('Downloading LARA dataset...')
+        with DLProgress(unit='B', unit_scale=True, miniters=1) as pbar:
+        urlopen(
             'http://s150102174.onlinehome.fr/Lara_UrbanSeq1_JPG.zip',
             os.path.join(data_dir, LARA_filename))
             pbar.hook)
@@ -90,34 +90,34 @@ def gen_batch_function_LARA(data_path):
         :return: Batches of training data
         """
 	for batch_i in range(0, len(label_no), batch_size):
-	    images = []
-	    labels = []
-	    for index in indices[batch_i:batch_i+batch_size]:
+            images = []
+            labels = []
+            for index in indices[batch_i:batch_i+batch_size]:
 
-		label = (label_class[index])
-		if label == "'go'":
-		    label = 'green'
-		elif label == "'warning'":
-		    label = 'yellow'
-		elif label == "'stop'":
-		    label = 'red'
-		elif label == "'ambiguous'":
-		    label = 'unknown'
-		labels.append(label)
+                label = (label_class[index])
+                if label == "'go'":
+                    label = 'green'
+                elif label == "'warning'":
+                    label = 'yellow'
+                elif label == "'stop'":
+                    label = 'red'
+                elif label == "'ambiguous'":
+                    label = 'unknown'
+                labels.append(label)
 
-		for image_file in image_paths:
-		    if label_no[index] == int(os.path.basename(image_file)[6:12]):
-			image = cv2.imread(image_file)
-#			image = cv2.resize(image, (WIDTH, HEIGHT), interpolation = cv2.INTER_AREA)
-#			image = cv2.resize(image, (WIDTH, HEIGHT), interpolation = cv2.INTER_CUBIC)
-			image = cv2.resize(image, (WIDTH, HEIGHT), interpolation = cv2.INTER_LINEAR)
-			images.append(image)
-			break
+                for image_file in image_paths:
+                    if label_no[index] == int(os.path.basename(image_file)[6:12]):
+                        image = cv2.imread(image_file)
+#                        image = cv2.resize(image, (WIDTH, HEIGHT), interpolation = cv2.INTER_AREA)
+#                        image = cv2.resize(image, (WIDTH, HEIGHT), interpolation = cv2.INTER_CUBIC)
+                        image = cv2.resize(image, (WIDTH, HEIGHT), interpolation = cv2.INTER_LINEAR)
+                        images.append(image)
+                        break
 
-	    # To visualise gen data
-#	    print(labels[0])
-#	    cv2.imshow("Image window", images[0])
-#	    cv2.waitKey(5000)
+            # To visualise gen data
+#            print(labels[0])
+#            cv2.imshow("Image window", images[0])
+#            cv2.waitKey(5000)
 
-	    yield np.array(images), np.array(labels)
+            yield np.array(images), np.array(labels)
     return get_batches_fn
