@@ -104,8 +104,9 @@ class DBWNode(object):
                 steer_yaw = self.yaw_controller.get_steering(linear_velocity,
                                                              angular_velocity,
                                                              current_linear_velocity)
-                steer = steer_twist + steer_yaw
-
+                steer = steer_yaw # steer_twist + steer_yaw
+                rospy.logdebug('steer_twist %s', steer_twist)
+                rospy.logdebug('steer_yaw %s', steer_yaw)
                 # Publisher:
                 #self.publish(0.5, 0, 0)  # for testing purposes
             else:
