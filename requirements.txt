@@ -8,3 +8,8 @@ scipy
 keras
 tensorflow
 h5py
+pytest
+future
+six
+rospy_message_converter
+backports.functools_lru_cache

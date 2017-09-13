@@ -10,6 +10,7 @@ from light_classification.tl_classifier import TLClassifier
 import tf
 import cv2
 import yaml
+from scipy import spatial
 
 STATE_COUNT_THRESHOLD = 3
 GET_TRAINING_DATA = True		# Set to True if you want to save training data
@@ -22,6 +23,10 @@ class TLDetector(object):
         self.waypoints = None
         self.camera_image = None
         self.lights = []
+
+        self.cust_waypoints = []
+        self.cust_tlights = []
+        self.detected_tlight = None
 
         sub1 = rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
 
@@ -60,12 +65,32 @@ class TLDetector(object):
 
     def pose_cb(self, msg):
         self.pose = msg
+        #print("[TLD] pose attr: ", dir(self.pose))
+        #print("[TLD] pose: ", self.pose)
+        #Test
+        #print("pose: ", self.pose.position.x, self.pose.position.y)
+
+
 
     def waypoints_cb(self, waypoints):
-        self.waypoints = waypoints.waypoints
+	self.waypoints = waypoints
+	# print("[TLD]waypoint dir: \n", dir(waypoints)) # print all attribute of the class
+	# print("[TLD]waypoint len: ", len(waypoints.waypoints))
+	# print("[TLD]waypoint wp: ", waypoints.waypoints[0])
+	# print(" pose attr:", dir(waypoints.waypoints[0].pose.pose.position))
+	# print("[TLD]waypoint position: ", waypoints.waypoints[0].pose.pose.position.x)
+	for i in range(0, len(self.waypoints.waypoints)):
+	    self.cust_waypoints.append([self.waypoints.waypoints[i].pose.pose.position.x, self.waypoints.waypoints[i].pose.pose.position.y])
+
 
     def traffic_cb(self, msg):
-        self.lights = msg.lights
+        if not self.lights:
+            self.lights = msg.lights
+            #print("[TLD] TL: ", dir(self.lights))
+            #print(self.lights[0])
+            for i in range(0, len(self.lights)):
+                tl_pose=[self.lights[i].pose.pose.position.x,self.lights[i].pose.pose.position.y]
+                self.cust_tlights.append(tl_pose)
 
     def image_cb(self, msg):
         """Identifies red lights in the incoming camera image and publishes the index
@@ -92,10 +117,9 @@ class TLDetector(object):
             self.last_state = self.state
             light_wp = light_wp if state == TrafficLight.RED else -1
             self.last_wp = light_wp
-            #######self.upcoming_red_light_pub.publish(Int32(light_wp))
+            self.upcoming_red_light_pub.publish(Int32(light_wp))
         else:
-            #######self.upcoming_red_light_pub.publish(Int32(self.last_wp))
-	    print('foo')
+            self.upcoming_red_light_pub.publish(Int32(self.last_wp))
         self.state_count += 1
 
     def get_closest_waypoint(self, pose):
@@ -108,8 +132,24 @@ class TLDetector(object):
             int: index of the closest waypoint in self.waypoints
 
         """
-        #TODO implement
-        return 0
+        # YWiyogo: this is a nearest neighbours search problem, not a closest pair of points problem
+        # Sort waypoint
+
+        # Divide the x_n points and compare the distance to the x_(n/2) & x_(n/2)+1
+        if self.waypoints and pose:
+            # tree = KDTree(X, leaf_size=2)
+            cust_pose = [pose.position.x, pose.position.y]
+            # dist, ind = tree.query(cust_pose, k=1)
+            dist,ind = spatial.KDTree(self.cust_waypoints).query(cust_pose)
+            #print("[TLD]pose: \n", pose)
+            if(ind > len(self.waypoints.waypoints) or ind <0):
+                print("[TDL]Err index out of range %d" % ind)
+            else:
+                print("[TLD] Closest index %d, distance to wp: %f, x: %f, y: %f" % (
+                ind, dist, self.waypoints.waypoints[ind].pose.pose.position.x, self.waypoints.waypoints[ind].pose.pose.position.y))
+            return ind
+        else:
+            return -1
 
 
     def project_to_image_plane(self, point_in_world):
@@ -165,10 +205,9 @@ class TLDetector(object):
         self.camera_image.encoding = "rgb8"
         cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
 
-	####### Commented out to get program to run
-        #x, y = self.project_to_image_plane(light.pose.pose.position)
+        x, y = self.project_to_image_plane(light.pose.pose.position)
 
-	####### Get training data
+	# Get training data
 	if GET_TRAINING_DATA:
 	    self.get_training_data(cv_image)
 
@@ -186,18 +225,42 @@ class TLDetector(object):
             int: ID of traffic light color (specified in styx_msgs/TrafficLight)
 
         """
-        #light = None
-	light = TrafficLight
-	light_wp = -1
+        enable_imshow= False    #activate to see the camera image
+        if enable_imshow:
+            cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, desired_encoding="passthrough")
+            cv2.imshow("Image window", cv_image)
+            cv2.waitKey(1)
+
+        light = None
         light_positions = self.config['light_positions']
+        # NOTE, YW: the above light_positions is based on the sim_traffic_light_config.xml
+        # but the entries are not the same as from the traffic_cb function !!
+        # Currently I concern only the traffic_cb
+        #print("light pos: ", light_positions)
+
         if(self.pose):
             car_position = self.get_closest_waypoint(self.pose.pose)
 
-        #TODO find the closest visible traffic light (if one exists)
+            #YW: find the closest visible traffic light (if one exists)
+            cust_pose = [self.pose.pose.position.x, self.pose.pose.position.y]
+            dist,ind = spatial.KDTree(self.cust_tlights).query(cust_pose)
+
+            diff_x = self.cust_tlights[ind][0] - self.pose.pose.position.x
+            if(dist < 70):
+                if diff_x >0:
+                    if self.detected_tlight != self.cust_tlights[ind]:
+                        self.detected_tlight = self.cust_tlights[ind]
+                        light = self.lights[ind]
+                        print("[TLD] TL %d found, A front distance to current pose: %f" % (ind, dist))
+
+
+                #else:
+                #    print("[TLD] TL is behind the car")
+
 
         if light:
             state = self.get_light_state(light)
-            return light_wp, state
+            return light, state
         self.waypoints = None
         return -1, TrafficLight.UNKNOWN
 

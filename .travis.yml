@@ -1,0 +1,9 @@
+
+image: ros:kinetic-ros-base-xenial
+
+before_script:
+    - echo "Installing dependencies"
+  
+after_script:
+    - echo "After script section"
+

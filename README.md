@@ -29,6 +29,17 @@ git clone https://github.com/udacity/CarND-Capstone.git
 cd CarND-Capstone
 pip install -r requirements.txt
 ```
+
+[Optional]: If you are using a VM for Virtual Box and want to run the Simulator on your host system, so you need to manually enable port 4567. Follow the following points: 
+
+   Port Forwarding
+   - First open up Oracle VM VirtualBox
+   - Click on the default session and select settings.
+   - Click on Network, and then Advanced.
+   - Click on Port Forwarding
+   - Click on the green plus, adds new port forwarding rule.
+   - Add a rule that has 4567 as both the host and guest IP.
+
 3. Make and run styx
 ```bash
 cd ros
