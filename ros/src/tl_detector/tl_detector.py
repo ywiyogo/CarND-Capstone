@@ -12,6 +12,7 @@ import cv2
 import yaml
 
 STATE_COUNT_THRESHOLD = 3
+GET_TRAINING_DATA = True		# Set to True if you want to save training data
 
 class TLDetector(object):
     def __init__(self):
@@ -23,7 +24,9 @@ class TLDetector(object):
         self.lights = []
 
         sub1 = rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
-        sub2 = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
+
+	if self.waypoints is None:
+	    sub2 = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
 
         '''
         /vehicle/traffic_lights helps you acquire an accurate ground truth data source for the traffic light
@@ -49,13 +52,17 @@ class TLDetector(object):
         self.last_wp = -1
         self.state_count = 0
 
+	if GET_TRAINING_DATA:
+	    self.approach = False
+	    self.last_dist = 0
+
         rospy.spin()
 
     def pose_cb(self, msg):
         self.pose = msg
 
     def waypoints_cb(self, waypoints):
-        self.waypoints = waypoints
+        self.waypoints = waypoints.waypoints
 
     def traffic_cb(self, msg):
         self.lights = msg.lights
@@ -85,9 +92,10 @@ class TLDetector(object):
             self.last_state = self.state
             light_wp = light_wp if state == TrafficLight.RED else -1
             self.last_wp = light_wp
-            self.upcoming_red_light_pub.publish(Int32(light_wp))
+            #######self.upcoming_red_light_pub.publish(Int32(light_wp))
         else:
-            self.upcoming_red_light_pub.publish(Int32(self.last_wp))
+            #######self.upcoming_red_light_pub.publish(Int32(self.last_wp))
+	    print('foo')
         self.state_count += 1
 
     def get_closest_waypoint(self, pose):
@@ -157,7 +165,12 @@ class TLDetector(object):
         self.camera_image.encoding = "rgb8"
         cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
 
-        x, y = self.project_to_image_plane(light.pose.pose.position)
+	####### Commented out to get program to run
+        #x, y = self.project_to_image_plane(light.pose.pose.position)
+
+	####### Get training data
+	if GET_TRAINING_DATA:
+	    self.get_training_data(cv_image)
 
         #TODO use light location to zoom in on traffic light in image
 
@@ -169,11 +182,13 @@ class TLDetector(object):
             location and color
 
         Returns:
-            int: index of waypoint closes to the upcoming traffic light (-1 if none exists)
+            int: index of waypoint closest to the upcoming traffic light (-1 if none exists)
             int: ID of traffic light color (specified in styx_msgs/TrafficLight)
 
         """
-        light = None
+        #light = None
+	light = TrafficLight
+	light_wp = -1
         light_positions = self.config['light_positions']
         if(self.pose):
             car_position = self.get_closest_waypoint(self.pose.pose)
@@ -185,6 +200,63 @@ class TLDetector(object):
             return light_wp, state
         self.waypoints = None
         return -1, TrafficLight.UNKNOWN
+
+
+
+
+    def get_training_data(self, image):
+        """Gets training data from the simulator
+
+        """
+	# Display camera image
+	cv2.imshow("Image window", image)
+	cv2.waitKey(3)
+
+	# Variables
+	label = 4
+	dist_min = 999999999
+	dist_threshold = 20000
+        light_positions = self.config['light_positions']
+
+	for i, light_pos in enumerate(light_positions):
+
+	    delta_x = self.pose.pose.position.x - light_pos[0]
+	    delta_y = self.pose.pose.position.y - light_pos[1]
+	    dist = (delta_x * delta_x) + (delta_y * delta_y)
+
+	    if dist < dist_min:
+		index = i
+		dist_min = dist
+		sign = delta_x / abs(delta_x)
+
+	"""
+	index: the index of the closest traffic light
+	sign: sign is negative when the vehicle is infront of the nearest traffic light (and visa versa)
+
+	Assign a label to the camera image:
+	4 = UNKNOWN
+	2 = GREEN
+	1 = YELLOW
+	0 = RED
+	"""
+	if (dist_min < dist_threshold):
+
+	    # Set approach flag if vehicle is infront of the traffic light
+	    if (self.last_dist - dist_min > 0):
+	        self.approach = True
+	    if (self.last_dist - dist_min < 0):
+	    	self.approach = False
+
+	    if (self.approach == True):
+		label = self.lights[index].state
+
+	print('Approaching TL? {}, Image Label = {}'.format(self.approach, label))
+
+	# Update previous minimum distance
+	self.last_dist = dist_min
+
+
+
 
 if __name__ == '__main__':
     try:
