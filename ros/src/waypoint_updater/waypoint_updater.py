@@ -104,7 +104,7 @@ def waypoints_under_lights(waypoints, lights, incremental=True):
     return final_waypoints
 
 
-def get_closest_waypoint_index(waypoints, pose):
+def get_closest_index_behind(waypoints, pose, incremental=True):
 
     waypoint_coordinates = [[waypoint.pose.pose.position.x,
                              waypoint.pose.pose.position.y] for waypoint in waypoints]
@@ -112,8 +112,17 @@ def get_closest_waypoint_index(waypoints, pose):
     pose_coordinates = [pose.pose.position.x, pose.pose.position.y]
     _, index = scipy.spatial.KDTree(waypoint_coordinates).query(pose_coordinates)
 
-    return index
-
+    next_index = (index + 1) % len(waypoints)
+    this_position = np.array(waypoint_coordinates[index])
+    next_position = np.array(waypoint_coordinates[next_index])
+    positive_vector = (this_position - next_position if incremental
+                       else this_position - next_position)
+    relative_position = np.array(pose_coordinates) - this_position
+    if (positive_vector.dot(relative_position) >= 0):
+        return index
+    else:
+        adjusted_index = index - 1 if incremental else index + 1
+        return index % len(waypoints)
 
 class WaypointUpdater(object):
 
@@ -140,7 +149,7 @@ class WaypointUpdater(object):
 
         velocity = 20
         if self.waypoints is not None:
-            closest_wp_index = get_closest_waypoint_index(self.waypoints, pose)
+            closest_wp_index = get_closest_index_behind(self.waypoints, pose)
             waypoints_2laps = self.waypoints + self.waypoints
             lane = Lane()
             velocity_waypoints = constant_v_waypoints(waypoints_2laps[closest_wp_index:

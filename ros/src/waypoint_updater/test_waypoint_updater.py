@@ -20,15 +20,16 @@ except ImportError:
 
 _DIRECTORY = os.path.abspath(os.path.dirname(__file__))
 
-def test_find_closest_point():
+def test_find_closest_behind_point():
 
     pose, lane, _ = get_data()
 
-    closest_index_manual = 356  # calculated by hand
+    pose.pose.position.x = 1213.25 # so that point 358 is the closest point
+    closest_index_manual = 357  # calculated by hand
 
-    closest_index = waypoint_updater.get_closest_waypoint_index(lane.waypoints, pose)
+    closest_index_behind = waypoint_updater.get_closest_index_behind(lane.waypoints, pose)
 
-    assert closest_index == closest_index_manual
+    assert closest_index_behind == closest_index_manual
 
 
 def test_constant_velocity_waypoints():
