@@ -6,7 +6,8 @@ from dbw_mkz_msgs.msg import ThrottleCmd, SteeringCmd, BrakeCmd, SteeringReport
 from geometry_msgs.msg import TwistStamped, PoseStamped
 from styx_msgs.msg import Lane
 
-from twist_controller import Controller
+from speed_controller import SpeedController
+from twist_controller import TwistController
 from yaw_controller import YawController
 
 from dbw_common import get_cross_track_error, get_cross_track_error_from_frenet
@@ -46,12 +47,15 @@ class DBWNode(object):
         rospy.Subscriber('/final_waypoints', Lane, self.final_waypoints_cb, queue_size=1)
 
         # Controller:
-        self.speed_and_twist_controller = Controller(controller_rate,
-                                                     accel_limit,
-                                                     decel_limit,
-                                                     max_steer_angle,
-                                                     vehicle_mass,
-                                                     wheel_radius)
+        self.speed_controller = SpeedController(controller_rate,
+                                                accel_limit,
+                                                decel_limit,
+                                                vehicle_mass,
+                                                wheel_radius)
+
+        self.twist_controller = TwistController(controller_rate,
+                                                max_steer_angle)
+
         self.yaw_controller = YawController(wheel_base,
                                             steer_ratio,
                                             min_speed,
@@ -83,32 +87,33 @@ class DBWNode(object):
             self.dbw_enabled = True
         else:
             self.dbw_enabled = False
-            self.speed_and_twist_controller.reset()
+            self.speed_controller.reset()
+            self.twist_controller.reset()
 
     def loop(self):
         rate = rospy.Rate(self.controller_rate)
         while not rospy.is_shutdown():
             rospy.loginfo(self.final_waypoints)
-            if len(self.final_waypoints)>=10:
+            if len(self.final_waypoints)>=2:
 
                 proposed_linear_velocity = self.final_waypoints[0].twist.twist.linear.x
                 current_linear_velocity = self.current_velocity.linear.x
 
                 # Calculate errors
                 cross_track_error = get_cross_track_error_from_frenet(self.final_waypoints, self.current_pose)
-                speed_error = proposed_linear_velocity - current_linear_velocity
-                throttle, brake, steer_twist = self.speed_and_twist_controller.control(speed_error, cross_track_error)
+                steer_twist = self.twist_controller.control(cross_track_error)
 
-                linear_velocity = self.twist_cmd.linear.x
-                angular_velocity = self.twist_cmd.angular.z
-                steer_yaw = self.yaw_controller.get_steering(linear_velocity,
-                                                             angular_velocity,
-                                                             current_linear_velocity)
+                steer_yaw = self.yaw_controller.get_steering(linear_velocity=self.twist_cmd.linear.x,
+                                                             angular_velocity=self.twist_cmd.angular.z,
+                                                             current_velocity=self.current_velocity.linear.x)
+
+                speed_error = proposed_linear_velocity - current_linear_velocity
+                throttle, brake = self.speed_controller.control(speed_error)
+
                 steer = steer_yaw # steer_twist + steer_yaw
                 rospy.logdebug('steer_twist %s', steer_twist)
                 rospy.logdebug('steer_yaw %s', steer_yaw)
-                # Publisher:
-                #self.publish(0.5, 0, 0)  # for testing purposes
+
             else:
                 throttle = 0
                 brake = 1000
