@@ -10,6 +10,8 @@ from speed_controller import SpeedController
 from twist_controller import TwistController
 from yaw_controller import YawController
 
+from lowpass import LowPassFilter
+
 from dbw_common import get_cross_track_error, get_cross_track_error_from_frenet
 
 class DBWNode(object):
@@ -30,16 +32,18 @@ class DBWNode(object):
         max_steer_angle = rospy.get_param('~max_steer_angle', 8.)
         min_speed = 0  # TODO: read from parameter server
         controller_rate = 10  # 30 TODO: read from parameter server, 30 is defined in cpp-file as loop-frequency # 50Hz
-
+        tau_acceleration = 0.5
 
         self.controller_rate = controller_rate
 
         # Subscriber:
         self.dbw_enabled = False
         self.current_linear_velocity = None
+        self.current_linear_acceleration = None
+        self.current_pose = None
         self.target_linear_velocity = None
         self.target_angular_velocity = None
-        self.current_pose = None
+
         self.final_waypoints = []
         rospy.Subscriber('/twist_cmd', TwistStamped, self.twist_cmd_cb, queue_size=1)
         rospy.Subscriber('/current_velocity', TwistStamped, self.current_velocity_cb, queue_size=1)
@@ -51,8 +55,9 @@ class DBWNode(object):
         self.speed_controller = SpeedController(controller_rate,
                                                 accel_limit,
                                                 decel_limit,
+                                                brake_deadband,
                                                 vehicle_mass,
-                                                wheel_radius)
+                                                wheel_radius,)
 
         self.twist_controller = TwistController(controller_rate,
                                                 max_steer_angle)
@@ -62,6 +67,9 @@ class DBWNode(object):
                                             min_speed,
                                             max_lat_accel,
                                             max_steer_angle)
+
+        # Filter
+        self.lowpass_acceleration = LowPassFilter(tau=tau_acceleration, ts=1.0/self.controller_rate)
 
         # Publisher:
         self.throttle_pub = rospy.Publisher('/vehicle/throttle_cmd', ThrottleCmd, queue_size=1)
@@ -76,6 +84,10 @@ class DBWNode(object):
         self.target_angular_velocity = msg.twist.angular.z
 
     def current_velocity_cb(self, msg):
+        if self.current_linear_velocity is not None:
+            accel = (self.current_linear_velocity - msg.twist.linear.x) * self.controller_rate
+            self.current_linear_acceleration = self.lowpass_acceleration.filt(accel)
+
         self.current_linear_velocity = msg.twist.linear.x
 
     def final_waypoints_cb(self, msg):
@@ -96,7 +108,14 @@ class DBWNode(object):
         rate = rospy.Rate(self.controller_rate)
         while not rospy.is_shutdown():
             rospy.loginfo(self.final_waypoints)
-            if len(self.final_waypoints)>=2:
+            if self.target_linear_velocity is None \
+                    or self.current_linear_velocity is None \
+                    or self.current_linear_acceleration is None \
+                    or self.current_pose is None \
+                    or self.final_waypoints is None:
+                continue
+
+            if (len(self.final_waypoints) > 2):
 
                 # Calculate errors
                 cross_track_error = get_cross_track_error_from_frenet(self.final_waypoints, self.current_pose)
@@ -106,8 +125,9 @@ class DBWNode(object):
                                                              angular_velocity=self.target_angular_velocity,
                                                              current_velocity=self.current_linear_velocity)
 
-                speed_error = self.target_linear_velocity - self.current_linear_velocity
-                throttle, brake = self.speed_controller.control(speed_error)
+                throttle, brake = self.speed_controller.control(target_linear_velocity=self.target_linear_velocity,
+                                                                current_linear_velocity=self.current_linear_velocity,
+                                                                current_linear_acceleration=self.current_linear_acceleration)
 
                 steer = steer_yaw # steer_twist + steer_yaw
                 rospy.logdebug('steer_twist %s', steer_twist)
@@ -115,7 +135,7 @@ class DBWNode(object):
 
             else:
                 throttle = 0
-                brake = 1000
+                brake = 10000
                 steer = 0
 
             if self.dbw_enabled:
