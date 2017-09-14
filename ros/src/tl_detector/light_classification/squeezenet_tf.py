@@ -206,7 +206,6 @@ def _pool_layer(net, name, input, pooling, size=(2, 2), stride=(3, 3), padding='
 def build_parser():
     ps = ArgumentParser()
     ps.add_argument('--in', dest='input', help='input file', metavar='INPUT', required=True)
-
     return ps
 
 def main():
@@ -217,7 +216,7 @@ def main():
     data_dir_LARA = 'data/LARA_dataset/'
 
     # Hyperparameters
-    learning_rate = 1e-4
+    lr = 1e-4
     epochs = 2
     batch_size = 64
     kp = 0.5
@@ -238,12 +237,14 @@ def main():
     img_content, orig_shape = imread_resize(options.input)
     img_content_shape = (batch_size,) + img_content.shape
 
-    # Loading ImageNet classes info
-    classes = []
-    classes.append('red')
-    classes.append('yellow')
-    classes.append('green')
-    classes.append('unknown')
+    '''
+    Load Traffic Light Classifier classes
+    4 = UNKNOWN
+    2 = GREEN
+    1 = YELLOW
+    0 = RED
+    '''
+    classes = [0, 1, 2, 4]
 
     # Loading network
     data, sqz_mean = load_net('./SqueezeNet/sqz_full.mat')
@@ -258,15 +259,17 @@ def main():
     with g.as_default(), tf.Session(config=config) as sess:
 
         # Placeholders
-        correct_label = tf.placeholder(dtype=tf.string)
-        image         = tf.placeholder(dtype=get_dtype_tf(), shape=img_content_shape, name="image_placeholder")
-        keep_prob     = tf.placeholder(get_dtype_tf())
+        correct_label = tf.placeholder(dtype=tf.int32)
+        image         = tf.placeholder(dtype=get_dtype_tf(), shape=img_content_shape)
+        keep_prob     = tf.placeholder(dtype=get_dtype_tf())
+        learning_rate = tf.placeholder(dtype=get_dtype_tf())
+        one_hot_y     = tf.one_hot(correct_label, 4)
 
         # SqueezeNet model
         sqznet, logits = net_preloaded(data, image, 'max', True, keep_prob)
 
         # Loss and Training operations
-        cross_entropy_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=correct_label, logits=logits))
+        cross_entropy_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=one_hot_y, logits=logits))
         training_operation = tf.train.AdamOptimizer(learning_rate = learning_rate).minimize(cross_entropy_loss)
 
 
@@ -280,13 +283,12 @@ def main():
         for epoch in range(epochs):
             gen = get_batches_fn(batch_size)
             for images, labels in gen:
-                print('images {}, correct_label {}, keep_prob {}, learning_rate {}'.format(images.dtype, labels.dtype, kp.dtype, learning_rate.dtype))
 
                 _, loss = sess.run([training_operation, cross_entropy_loss],
                                    feed_dict={image: images,
                                               correct_label: labels,
                                               keep_prob: kp,
-                                              learning_rate: learning_rate}
+                                              learning_rate: lr}
                                   )
                 print('Epoch {}: loss = {}'.format(epoch, loss))
 ###<--NEW_end-->###

@@ -96,13 +96,13 @@ def gen_batch_function_LARA(data_path):
 
                 label = (label_class[index])
                 if label == "'go'":
-                    label = 'green'
+                    label = 2                 #'green'
                 elif label == "'warning'":
-                    label = 'yellow'
+                    label = 1                 #'yellow'
                 elif label == "'stop'":
-                    label = 'red'
+                    label = 0                 #'red'
                 elif label == "'ambiguous'":
-                    label = 'unknown'
+                    label = 4                 #'unknown'
                 labels.append(label)
 
                 for image_file in image_paths:
