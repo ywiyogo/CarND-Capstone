@@ -54,6 +54,44 @@ def test_constant_velocity_waypoints():
         assert abs(v_total - velocity) < 1e-4
 
 
+def test_influence_traffic_lights():
+
+    _, lane, traffic_lights = get_data()
+
+    velocity = 30
+    incremental = True
+    start_index = 20
+    length = 10
+
+    waypoints = lane.waypoints[20:start_index+length]
+
+    velocity_waypoints = waypoint_updater.constant_v_waypoints(waypoints,
+                                                               velocity,
+                                                               incremental)
+
+    position_x_start = velocity_waypoints[0].pose.pose.position.x
+    position_y_start = velocity_waypoints[0].pose.pose.position.y
+
+    position_x_next = velocity_waypoints[1].pose.pose.position.x
+    position_y_next = velocity_waypoints[1].pose.pose.position.y
+
+    delta_x = position_x_next - position_x_start
+    delta_y = position_y_next - position_y_start
+    delta_s = math.sqrt(delta_x**2 + delta_y**2)
+
+    lights = traffic_lights.lights[0:1]
+    lights[0].pose.pose.position.x = position_x_start + 0.1 * delta_x / delta_s 
+    lights[0].pose.pose.position.y = position_y_start + 0.1 * delta_y / delta_s 
+    lights[0].state = 0
+
+    final_waypoints = waypoint_updater.waypoints_under_lights(velocity_waypoints,
+                                                              lights,
+                                                              incremental)
+
+    assert final_waypoints[0].twist.twist.linear.x == 0
+    assert final_waypoints[0].twist.twist.linear.y == 0
+
+
 @lru_cache()
 def get_data():
     data_directory = os.path.join(_DIRECTORY, 'data')
