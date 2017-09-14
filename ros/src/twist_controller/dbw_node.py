@@ -36,8 +36,9 @@ class DBWNode(object):
 
         # Subscriber:
         self.dbw_enabled = False
-        self.twist_cmd = None
-        self.current_velocity = None
+        self.current_linear_velocity = None
+        self.target_linear_velocity = None
+        self.target_angular_velocity = None
         self.current_pose = None
         self.final_waypoints = []
         rospy.Subscriber('/twist_cmd', TwistStamped, self.twist_cmd_cb, queue_size=1)
@@ -71,10 +72,11 @@ class DBWNode(object):
         self.loop()
 
     def twist_cmd_cb(self, msg):
-        self.twist_cmd = msg.twist
+        self.target_linear_velocity = msg.twist.linear.x
+        self.target_angular_velocity = msg.twist.angular.z
 
     def current_velocity_cb(self, msg):
-        self.current_velocity = msg.twist
+        self.current_linear_velocity = msg.twist.linear.x
 
     def final_waypoints_cb(self, msg):
         self.final_waypoints = msg.waypoints
@@ -96,18 +98,15 @@ class DBWNode(object):
             rospy.loginfo(self.final_waypoints)
             if len(self.final_waypoints)>=2:
 
-                proposed_linear_velocity = self.final_waypoints[0].twist.twist.linear.x
-                current_linear_velocity = self.current_velocity.linear.x
-
                 # Calculate errors
                 cross_track_error = get_cross_track_error_from_frenet(self.final_waypoints, self.current_pose)
                 steer_twist = self.twist_controller.control(cross_track_error)
 
-                steer_yaw = self.yaw_controller.get_steering(linear_velocity=self.twist_cmd.linear.x,
-                                                             angular_velocity=self.twist_cmd.angular.z,
-                                                             current_velocity=self.current_velocity.linear.x)
+                steer_yaw = self.yaw_controller.get_steering(linear_velocity=self.target_linear_velocity,
+                                                             angular_velocity=self.target_angular_velocity,
+                                                             current_velocity=self.current_linear_velocity)
 
-                speed_error = proposed_linear_velocity - current_linear_velocity
+                speed_error = self.target_linear_velocity - self.current_linear_velocity
                 throttle, brake = self.speed_controller.control(speed_error)
 
                 steer = steer_yaw # steer_twist + steer_yaw
