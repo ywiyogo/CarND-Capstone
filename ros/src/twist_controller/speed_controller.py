@@ -22,6 +22,9 @@ class SpeedController(object):
 
         self.filter_throttle = lowpass.LowPassFilter(tau=0.1, ts=1)
 
+        self.last_timestamp = rospy.get_time()
+
+
     def control(self, target_linear_velocity, current_linear_velocity, current_linear_acceleration):
         """
         calculates control signal
@@ -35,11 +38,15 @@ class SpeedController(object):
 
         rospy.loginfo("velocity_error is {}".format(velocity_error))
 
+        current_timestamp = rospy.get_time()
+        duration = current_timestamp - self.last_timestamp
+        self.last_timestamp = current_timestamp
+
         sample_time = 1.0 / self.controller_rate # TODO: measure time
 
         rospy.loginfo('Error speed: %s', velocity_error)
 
-        acceleration_cmd = self.pid_acceleration.step(error=velocity_error, sample_time=sample_time)
+        acceleration_cmd = self.pid_acceleration.step(error=velocity_error, sample_time=duration)
         rospy.loginfo('Acc PID output: %s', acceleration_cmd)
 
         acceleration_error = acceleration_cmd - current_linear_acceleration
@@ -48,10 +55,12 @@ class SpeedController(object):
             throttle_out = 0
             brake_out = -acceleration_cmd * self.vehicle_mass * self.wheel_radius
             self.pid_acceleration.reset()
+            rospy.logdebug('[speed_controller] Really braking')
         elif (acceleration_cmd < 0):
             throttle_out = 0
             brake_out = 0
             self.pid_acceleration.reset()
+            rospy.logdebug('[speed_controller] Using brake deadband')
         else:
             throttle_out = self.pid_throttle.step(error=acceleration_error, sample_time=sample_time)
             rospy.loginfo('Throttle PID output %s', throttle_out)

@@ -31,7 +31,7 @@ class DBWNode(object):
         max_lat_accel = rospy.get_param('~max_lat_accel', 3.)
         max_steer_angle = rospy.get_param('~max_steer_angle', 8.)
         min_speed = 0  # TODO: read from parameter server
-        controller_rate = 50  # 30 TODO: read from parameter server, 30 is defined in cpp-file as loop-frequency # 50Hz
+        controller_rate = 10  # 30 TODO: read from parameter server, 30 is defined in cpp-file as loop-frequency # 50Hz
         tau_acceleration = 0.5
 
         self.controller_rate = controller_rate
@@ -126,23 +126,24 @@ class DBWNode(object):
                                                              angular_velocity=self.target_angular_velocity,
                                                              current_velocity=self.current_linear_velocity)
 
-                throttle, brake = self.speed_controller.control(target_linear_velocity=self.target_linear_velocity,
+                throttle, brake = self.speed_controller.control(target_linear_velocity=10,#self.target_linear_velocity,
                                                                 current_linear_velocity=self.current_linear_velocity,
                                                                 current_linear_acceleration=self.current_linear_acceleration)
 
-                # steer = steer_yaw # steer_twist + steer_yaw
-                steer = steer_twist
+                steer = steer_twist + steer_yaw
+                #steer = steer_twist
                 rospy.loginfo('steer_twist %s', steer_twist)
                 rospy.loginfo('steer_yaw %s', steer_yaw)
 
             else:
+                rospy.logwarn('[dbw_node] No more final_waypoints')
                 throttle = 0
                 brake = 10000
                 steer = 0
 
             if self.dbw_enabled:
                 # self.publish(throttle, brake, steer)
-                self.publish(0.5, 0, steer)
+                self.publish(throttle, 0, steer)
 
             rate.sleep() # wiki.ros.org/rospy/Overview/Time#Sleeping_and_Rates --> wait until next rate
 
