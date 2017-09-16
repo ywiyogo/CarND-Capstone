@@ -12,7 +12,7 @@ from yaw_controller import YawController
 
 from lowpass import LowPassFilter
 
-from dbw_common import get_cross_track_error, get_cross_track_error_from_frenet
+from dbw_common import get_cross_track_error_from_frenet
 
 class DBWNode(object):
 
@@ -119,27 +119,31 @@ class DBWNode(object):
 
                 # Calculate errors
                 cross_track_error = get_cross_track_error_from_frenet(self.final_waypoints, self.current_pose)
+                rospy.loginfo("cross_track_error is {}".format(cross_track_error))
                 steer_twist = self.twist_controller.control(cross_track_error)
 
                 steer_yaw = self.yaw_controller.get_steering(linear_velocity=self.target_linear_velocity,
                                                              angular_velocity=self.target_angular_velocity,
                                                              current_velocity=self.current_linear_velocity)
 
-                throttle, brake = self.speed_controller.control(target_linear_velocity=self.target_linear_velocity,
+                throttle, brake = self.speed_controller.control(target_linear_velocity=10,#self.target_linear_velocity,
                                                                 current_linear_velocity=self.current_linear_velocity,
                                                                 current_linear_acceleration=self.current_linear_acceleration)
 
-                steer = steer_yaw # steer_twist + steer_yaw
-                rospy.logdebug('steer_twist %s', steer_twist)
-                rospy.logdebug('steer_yaw %s', steer_yaw)
+                steer = steer_twist + steer_yaw
+                #steer = steer_twist
+                rospy.loginfo('steer_twist %s', steer_twist)
+                rospy.loginfo('steer_yaw %s', steer_yaw)
 
             else:
+                rospy.logwarn('[dbw_node] No more final_waypoints')
                 throttle = 0
                 brake = 10000
                 steer = 0
 
             if self.dbw_enabled:
-                self.publish(throttle, brake, steer)
+                # self.publish(throttle, brake, steer)
+                self.publish(throttle, 0, steer)
 
             rate.sleep() # wiki.ros.org/rospy/Overview/Time#Sleeping_and_Rates --> wait until next rate
 

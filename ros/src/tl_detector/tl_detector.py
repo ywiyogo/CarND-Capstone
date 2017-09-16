@@ -272,8 +272,6 @@ class TLDetector(object):
 
         """
         # Display camera image
-        cv2.imshow("Image window", image)
-        cv2.waitKey(3)
 
         # Variables
         label = 4
