@@ -7,6 +7,7 @@ import numpy as np
 import scipy.io
 import time
 import helper
+import cv2
 
 from tensorflow.contrib.layers import flatten
 
@@ -104,7 +105,8 @@ def net_preloaded(preloaded, input_image, pooling, needs_classifier=False, keep_
     net = {}
     cr_time = time.time()
 
-    x = tf.cast(input_image, get_dtype_tf())
+#    x = tf.cast(input_image, get_dtype_tf())
+    x = input_image
 
     # Feature extractor
     #####################
@@ -213,95 +215,124 @@ def main():
     parser = build_parser()
     options = parser.parse_args()
 
-    data_dir_LARA = 'data/LARA_dataset/'
+    # Loading network
+    data, sqz_mean = load_net('./SqueezeNet/sqz_full.mat')
 
     # Hyperparameters
     lr = 1e-4
-    epochs = 2
-    batch_size = 64
+    epochs = 1
+    batch_size = 128
     kp = 0.5
 
-    # Download LARA dataset if not already downloaded
-#    helper.maybe_download_LARA_dataset(data_dir_LARA)
-
     # Load training data generator
-    # To run generator: gen = get_batches_fn(batch_size)
-    get_batches_fn = helper.gen_batch_function_LARA(data_dir_LARA)
+    data_dir_LARA = 'data/LARA_dataset/'
+    get_batches_fn, X_test, y_test = helper.gen_batch_function_LARA(data_dir_LARA)
 
     # Test generator image and label
 #    gen = get_batches_fn(batch_size)
 #    for image, label in gen:
 #	print("testing generator image and label")
 
+    # Placeholders
+    images        = tf.placeholder(dtype=tf.float32, shape=(batch_size, helper.HEIGHT, helper.WIDTH, 3))
+    labels        = tf.placeholder(dtype=tf.int32, shape=batch_size)
+    keep_prob     = tf.placeholder(dtype=tf.float32)
+    learning_rate = tf.placeholder(dtype=tf.float32)
+
+    # SqueezeNet model
+    model, logits = net_preloaded(data, images, 'max', True, keep_prob)
+
+    # Loss and Training operations
+    cross_entropy_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=labels, logits=logits))
+    training_operation = tf.train.AdamOptimizer(learning_rate = learning_rate).minimize(cross_entropy_loss)
+
+    # Accuracy operation
+    correct_prediction = tf.equal(tf.argmax(logits, 1), tf.argmax(labels, 1))
+    accuracy_operation = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+
+    # Evaluate the loss and accuracy of the model
+    def evaluate(X_data, y_data, batch_size):
+        num_examples = len(X_data)
+        total_accuracy = 0
+        sess = tf.get_default_session()
+        for offset in range(0, num_examples, batch_size):
+            batch_x, batch_y = X_data[offset:offset+batch_size], y_data[offset:offset+batch_size]
+            accuracy = sess.run(accuracy_operation, feed_dict={images: batch_x,
+                                                               labels: batch_y,
+                                                               keep_prob: 1})
+            total_accuracy += (accuracy * len(batch_x))
+        return total_accuracy / num_examples
+
+    # Save variables
+    saver = tf.train.Saver()
+
     # Loading image
-    img_content, orig_shape = imread_resize(options.input)
-    img_content_shape = (batch_size,) + img_content.shape
+    image = helper.get_image(options.input)
 
     '''
     Load Traffic Light Classifier classes
-    4 = UNKNOWN
-    2 = GREEN
-    1 = YELLOW
     0 = RED
+    1 = YELLOW
+    2 = GREEN
+    4 = UNKNOWN
     '''
     classes = [0, 1, 2, 4]
+    num_classes = len(classes)
 
-    # Loading network
-    data, sqz_mean = load_net('./SqueezeNet/sqz_full.mat')
-
-    config = tf.ConfigProto(log_device_placement = False)
+    config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
     config.gpu_options.allocator_type = 'BFC'
 
-    g = tf.Graph()
-
     # Simple classification
-    with g.as_default(), tf.Session(config=config) as sess:
-
-        # Placeholders
-        correct_label = tf.placeholder(dtype=tf.int32)
-        image         = tf.placeholder(dtype=get_dtype_tf(), shape=img_content_shape)
-        keep_prob     = tf.placeholder(dtype=get_dtype_tf())
-        learning_rate = tf.placeholder(dtype=get_dtype_tf())
-        one_hot_y     = tf.one_hot(correct_label, 4)
-
-        # SqueezeNet model
-        sqznet, logits = net_preloaded(data, image, 'max', True, keep_prob)
-
-        # Loss and Training operations
-        cross_entropy_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=one_hot_y, logits=logits))
-        training_operation = tf.train.AdamOptimizer(learning_rate = learning_rate).minimize(cross_entropy_loss)
-
+    with tf.Session(config=config) as sess:
 
         # Initialize variables
         sess.run(tf.global_variables_initializer())
 
-
-###<--NEW_start-->###
         print
         print('Training...')
         for epoch in range(epochs):
             gen = get_batches_fn(batch_size)
-            for images, labels in gen:
+            for X_train, y_train in gen:
 
                 _, loss = sess.run([training_operation, cross_entropy_loss],
-                                   feed_dict={image: images,
-                                              correct_label: labels,
+                                   feed_dict={images: X_train,
+                                              labels: y_train,
                                               keep_prob: kp,
                                               learning_rate: lr}
                                   )
-                print('Epoch {}: loss = {}'.format(epoch, loss))
-###<--NEW_end-->###
+                print('Epoch {}: loss = {}'.format(epoch+1, loss))
+
+        # Save the variables to disk.
+        saver.save(sess, "model/model")
+        print("Model saved.")
 
 
+        test_accuracy = evaluate(X_test, y_test, batch_size)
+        print("Test Accuracy = {:.3f}".format(test_accuracy))
+
+        '''
+        # serialize model to YAML
+        print('Saving model as model.yaml...')
+        with open("model.yaml", "w") as outfile:
+            yaml.dump(model, outfile, default_flow_style=False)
+        # serialize weights to HDF5
+        hf = h5py.File('model.h5', 'w')
+        hf.create_dataset('model', data=)
+        print('Saving weights as model.h5...')
+        model.save_weights("model.h5")
+        print("Saved model and weights to disk")
+		'''
+
+        '''
         # Classifying
-#        sqznet_results = sqznet['classifier_actv'].eval(feed_dict={image: [preprocess(img_content, sqz_mean)], keep_prob: 1.})[0]
+#        sqznet_results = model['classifier_actv'].eval(feed_dict={image: [preprocess(image, sqz_mean)], keep_prob: 1.})[0]
 
         # Outputting result
 #        sqz_class = np.argmax(sqznet_results)
 
 #        print("\nclass: [%d] '%s' with %5.2f%% confidence" % (sqz_class, classes[sqz_class], sqznet_results[sqz_class] * 100))
-
+         '''
         
 if __name__ == '__main__':
     main()
