@@ -13,7 +13,7 @@ import yaml
 from scipy import spatial
 
 STATE_COUNT_THRESHOLD = 3
-GET_TRAINING_DATA = True		# Set to True if you want to save training data
+GET_TRAINING_DATA = False		# Set to True if you want to save training data
 
 class TLDetector(object):
     def __init__(self):
@@ -71,14 +71,15 @@ class TLDetector(object):
 
 
     def waypoints_cb(self, waypoints):
-        self.waypoints = waypoints
-        # print("[TLD]waypoint dir: \n", dir(waypoints)) # print all attribute of the class
-        # print("[TLD]waypoint len: ", len(waypoints.waypoints))
-        # print("[TLD]waypoint wp: ", waypoints.waypoints[0])
-        # print(" pose attr:", dir(waypoints.waypoints[0].pose.pose.position))
-        # print("[TLD]waypoint position: ", waypoints.waypoints[0].pose.pose.position.x)
-        for i in range(0, len(self.waypoints.waypoints)):
-            self.cust_waypoints.append([self.waypoints.waypoints[i].pose.pose.position.x, self.waypoints.waypoints[i].pose.pose.position.y])
+        if not self.waypoints:
+            self.waypoints = waypoints
+            # print("[TLD]waypoint dir: \n", dir(waypoints)) # print all attribute of the class
+            # print("[TLD]waypoint len: ", len(waypoints.waypoints))
+            # print("[TLD]waypoint wp: ", waypoints.waypoints[0])
+            # print(" pose attr:", dir(waypoints.waypoints[0].pose.pose.position))
+            # print("[TLD]waypoint position: ", waypoints.waypoints[0].pose.pose.position.x)
+            for i in range(0, len(self.waypoints.waypoints)):
+                self.cust_waypoints.append([self.waypoints.waypoints[i].pose.pose.position.x, self.waypoints.waypoints[i].pose.pose.position.y])
 
 
     def traffic_cb(self, msg):
@@ -203,7 +204,8 @@ class TLDetector(object):
         self.camera_image.encoding = "rgb8"
         cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
 
-        x, y = self.project_to_image_plane(light.pose.pose.position)
+        # Commented out for testing...
+        #x, y = self.project_to_image_plane(light.pose.pose.position)
 
         # Get training data
         if GET_TRAINING_DATA:
@@ -230,6 +232,7 @@ class TLDetector(object):
             cv2.waitKey(1)
 
         light = None
+        #light = TrafficLight
         light_positions = self.config['light_positions']
         # NOTE, YW: the above light_positions is based on the sim_traffic_light_config.xml
         # but the entries are not the same as from the traffic_cb function !!
