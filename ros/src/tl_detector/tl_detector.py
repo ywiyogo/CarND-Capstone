@@ -232,7 +232,6 @@ class TLDetector(object):
             cv2.waitKey(1)
 
         light = None
-        #light = TrafficLight
         light_positions = self.config['light_positions']
         # NOTE, YW: the above light_positions is based on the sim_traffic_light_config.xml
         # but the entries are not the same as from the traffic_cb function !!
