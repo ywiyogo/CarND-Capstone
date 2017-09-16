@@ -33,6 +33,8 @@ class SpeedController(object):
 
         velocity_error = target_linear_velocity - current_linear_velocity
 
+        rospy.loginfo("velocity_error is {}".format(velocity_error))
+
         sample_time = 1.0 / self.controller_rate # TODO: measure time
 
         rospy.loginfo('Error speed: %s', velocity_error)

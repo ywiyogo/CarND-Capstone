@@ -152,10 +152,13 @@ class WaypointUpdater(object):
             closest_wp_index = get_closest_index_behind(self.waypoints, pose)
             waypoints_2laps = self.waypoints + self.waypoints
             lane = Lane()
-            velocity_waypoints = constant_v_waypoints(waypoints_2laps[closest_wp_index:
-                                                                      closest_wp_index+LOOKAHEAD_WPS],
-                                                      velocity)
-            lane.waypoints = waypoints_under_lights(velocity_waypoints, self.lights)
+            lane.waypoints = constant_v_waypoints(waypoints_2laps[closest_wp_index:
+                                                                  closest_wp_index+LOOKAHEAD_WPS],
+                                                  velocity)
+            #velocity_waypoints = constant_v_waypoints(waypoints_2laps[closest_wp_index:
+            #                                                          closest_wp_index+LOOKAHEAD_WPS],
+            #                                          velocity)
+            # lane.waypoints = waypoints_under_lights(velocity_waypoints, self.lights)
             
             self.final_waypoints_pub.publish(lane)
 

@@ -31,7 +31,7 @@ class DBWNode(object):
         max_lat_accel = rospy.get_param('~max_lat_accel', 3.)
         max_steer_angle = rospy.get_param('~max_steer_angle', 8.)
         min_speed = 0  # TODO: read from parameter server
-        controller_rate = 10  # 30 TODO: read from parameter server, 30 is defined in cpp-file as loop-frequency # 50Hz
+        controller_rate = 50  # 30 TODO: read from parameter server, 30 is defined in cpp-file as loop-frequency # 50Hz
         tau_acceleration = 0.5
 
         self.controller_rate = controller_rate
@@ -119,6 +119,7 @@ class DBWNode(object):
 
                 # Calculate errors
                 cross_track_error = get_cross_track_error_from_frenet(self.final_waypoints, self.current_pose)
+                rospy.loginfo("cross_track_error is {}".format(cross_track_error))
                 steer_twist = self.twist_controller.control(cross_track_error)
 
                 steer_yaw = self.yaw_controller.get_steering(linear_velocity=self.target_linear_velocity,
@@ -129,9 +130,10 @@ class DBWNode(object):
                                                                 current_linear_velocity=self.current_linear_velocity,
                                                                 current_linear_acceleration=self.current_linear_acceleration)
 
-                steer = steer_yaw # steer_twist + steer_yaw
-                rospy.logdebug('steer_twist %s', steer_twist)
-                rospy.logdebug('steer_yaw %s', steer_yaw)
+                # steer = steer_yaw # steer_twist + steer_yaw
+                steer = steer_twist
+                rospy.loginfo('steer_twist %s', steer_twist)
+                rospy.loginfo('steer_yaw %s', steer_yaw)
 
             else:
                 throttle = 0
@@ -139,7 +141,8 @@ class DBWNode(object):
                 steer = 0
 
             if self.dbw_enabled:
-                self.publish(throttle, brake, steer)
+                # self.publish(throttle, brake, steer)
+                self.publish(0.5, 0, steer)
 
             rate.sleep() # wiki.ros.org/rospy/Overview/Time#Sleeping_and_Rates --> wait until next rate
 

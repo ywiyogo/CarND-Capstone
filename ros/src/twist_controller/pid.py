@@ -1,3 +1,4 @@
+import rospy
 
 MIN_NUM = float('-inf')
 MAX_NUM = float('inf')
@@ -17,10 +18,11 @@ class PID(object):
         self.int_val = 0.0
         self.last_int_val = 0.0
 
-    def step(self, error, sample_time):
+    def step(self, error, sample_time, verbose=False):
         self.last_int_val = self.int_val
 
         integral = self.int_val + error * sample_time;
+
         derivative = (error - self.last_error) / sample_time;
 
         y = self.kp * error + self.ki * self.int_val + self.kd * derivative;
@@ -33,5 +35,11 @@ class PID(object):
         else:
             self.int_val = integral
         self.last_error = error
+
+        if verbose:
+            rospy.loginfo('P: {}'.format(self.kp * error))
+            rospy.loginfo('I: {}'.format(self.ki * self.int_val))
+            rospy.loginfo('D: {}'.format(self.kd * derivative))
+            
 
         return val
