@@ -2,17 +2,21 @@ from styx_msgs.msg import TrafficLight
 import tensorflow as tf
 import helper
 
+MODEL_DIR = '/home/david/CarND/CarND-P13-Capstone-Team/ros/src/tl_detector/light_classification/model'
+#MODEL_DIR = 'src/tl_detector/light_classification/model'
+
 class TLClassifier(object):
     def __init__(self):
         #TODO load classifier
+        pass
+
         print('--------------- Loading classifier --------------')
         print
         sess = tf.Session()
         print
         # Load the meta graph and restore weights
-        model_dir = '/home/david/CarND/CarND-P13-Capstone-Team/ros/src/tl_detector/light_classification/model'
-        saver = tf.train.import_meta_graph(model_dir + '/model.meta')
-        saver.restore(sess, tf.train.latest_checkpoint(model_dir))
+        saver = tf.train.import_meta_graph(MODEL_DIR + '/model.meta')
+        saver.restore(sess, tf.train.latest_checkpoint(MODEL_DIR))
         print('---------------- Loading complete ---------------')
 
 
@@ -27,10 +31,12 @@ class TLClassifier(object):
 
         """
         #TODO implement light color prediction
+        return TrafficLight.UNKNOWN
+
         print('--------------- Getting classification --------------')
 
         with tf.Session() as sess:
-            saver.restore(sess, tf.train.latest_checkpoint('.'))
+            saver.restore(sess, tf.train.latest_checkpoint(MODEL_DIR))
 
             # Get probability in range[0:1] of classification
             softmax_operation = tf.nn.softmax(logits)
