@@ -2,8 +2,11 @@ from styx_msgs.msg import TrafficLight
 import tensorflow as tf
 import helper
 
-MODEL_DIR = '/home/david/CarND/CarND-P13-Capstone-Team/ros/src/tl_detector/light_classification/model'
-#MODEL_DIR = 'src/tl_detector/light_classification/model'
+import os
+
+# Get the model directory
+MODEL_DIR = os.getcwd()+ "/light_classification/model"
+
 
 class TLClassifier(object):
     def __init__(self):
