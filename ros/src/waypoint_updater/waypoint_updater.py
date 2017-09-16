@@ -10,14 +10,19 @@ import scipy.spatial
 import math
 import numpy as np
 
+try:
+    from functools import lru_cache
+except ImportError:
+    from backports.functools_lru_cache import lru_cache
+
+
 LOOKAHEAD_WPS = 30  # 200 requires too much CPU.
 
 
 def constant_v_waypoints(waypoints, velocity, incremental=True):
     final_waypoints = []
 
-    if incremental:
-        forward_velocity = velocity
+    if incremental: forward_velocity = velocity
     else:
         forward_velocity = - velocity
 
@@ -104,13 +109,26 @@ def waypoints_under_lights(waypoints, lights, incremental=True):
     return final_waypoints
 
 
+def get_kd_tree(waypoints):
+    if get_kd_tree.kd_tree == None:
+        waypoint_coordinates = [[waypoint.pose.pose.position.x,
+                                 waypoint.pose.pose.position.y] for waypoint in waypoints]
+        get_kd_tree.kd_tree = scipy.spatial.KDTree(waypoint_coordinates)
+        get_kd_tree.waypoint_coordinates = waypoint_coordinates
+        return get_kd_tree.kd_tree, get_kd_tree.waypoint_coordinates
+    else:
+        return get_kd_tree.kd_tree, get_kd_tree.waypoint_coordinates
+get_kd_tree.kd_tree = None
+get_kd_tree.waypoint_coordinates = None
+
+
 def get_closest_index_behind(waypoints, pose, incremental=True):
 
-    waypoint_coordinates = [[waypoint.pose.pose.position.x,
-                             waypoint.pose.pose.position.y] for waypoint in waypoints]
+
+    waypoints_kd_tree, waypoint_coordinates = get_kd_tree(waypoints)
 
     pose_coordinates = [pose.pose.position.x, pose.pose.position.y]
-    _, index = scipy.spatial.KDTree(waypoint_coordinates).query(pose_coordinates)
+    _, index = waypoints_kd_tree.query(pose_coordinates)
 
     next_index = (index + 1) % len(waypoints)
     this_position = np.array(waypoint_coordinates[index])
