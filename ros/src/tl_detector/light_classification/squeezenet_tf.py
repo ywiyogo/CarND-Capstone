@@ -14,6 +14,8 @@ from tensorflow.contrib.layers import flatten
 from PIL import Image
 
 from argparse import ArgumentParser
+# Get the model directory
+LOG_DIR = os.getcwd()+ "/logs"
 
 def imread_resize(path):
     img_orig = scipy.misc.imread(path)
@@ -26,13 +28,13 @@ def imread_resize(path):
 def imsave(path, img):
     img = np.clip(img, 0, 255).astype(np.uint8)
     Image.fromarray(img).save(path, quality=95)
-    
+
 def get_dtype_np():
     return np.float32
 
 def get_dtype_tf():
     return tf.float32
-    
+
 # SqueezeNet v1.1 (signature pool 1/3/5)
 ########################################
 
@@ -53,7 +55,7 @@ def load_net(data_path):
             weights[name].append( kernels.astype(get_dtype_np()) )
             weights[name].append( bias.astype(get_dtype_np()) )
     print("Converted network data(%s): %fs" % (get_dtype_np(), time.time() - conv_time))
-    
+
     mean_pixel = np.array([104.006, 116.669, 122.679], dtype=get_dtype_np())
     return weights, mean_pixel
 
@@ -82,7 +84,7 @@ def fire_cluster(net, x, preloaded, cluster_name):
     weights, biases = get_weights_biases(preloaded, layer_name)
     x = _conv_layer(net, layer_name + '_conv', x, weights, biases, padding='VALID')
     x = _act_layer(net, layer_name + '_actv', x)
-    
+
     # left - expand 1x1
     layer_name = cluster_name + '/expand1x1'
     weights, biases = get_weights_biases(preloaded, layer_name)
@@ -94,11 +96,11 @@ def fire_cluster(net, x, preloaded, cluster_name):
     weights, biases = get_weights_biases(preloaded, layer_name)
     x_r = _conv_layer(net, layer_name + '_conv', x, weights, biases, padding='SAME')
     x_r = _act_layer(net, layer_name + '_actv', x_r)
-    
+
     # concatenate expand 1x1 (left) and expand 3x3 (right)
     x = tf.concat([x_l, x_r], 3)
     net[cluster_name + '/concat_conc'] = x
-    
+
     return x
 
 def net_preloaded(preloaded, input_image, pooling, needs_classifier=False, keep_prob=None):
@@ -110,7 +112,7 @@ def net_preloaded(preloaded, input_image, pooling, needs_classifier=False, keep_
 
     # Feature extractor
     #####################
-    
+
     # conv1 cluster
     layer_name = 'conv1'
     weights, biases = get_weights_biases(preloaded, layer_name)
@@ -136,20 +138,20 @@ def net_preloaded(preloaded, input_image, pooling, needs_classifier=False, keep_
     x = fire_cluster(net, x, preloaded, cluster_name='fire7')
     x = fire_cluster(net, x, preloaded, cluster_name='fire8')
     x = fire_cluster(net, x, preloaded, cluster_name='fire9')
-    
+
     # Classifier
     #####################
     if needs_classifier == True:
         # Dropout [use value of 50% when training]
         x = tf.nn.dropout(x, keep_prob)
-    
+
         # Fixed global avg pool/softmax classifier:
         # [227, 227, 3] -> 1000 classes
         layer_name = 'conv10'
         weights, biases = get_weights_biases(preloaded, layer_name)
         x = _conv_layer(net, layer_name + '_conv', x, weights, biases)
         x = _act_layer(net, layer_name + '_actv', x)
-        
+
         # Global Average Pooling
         x = _pool_layer(net, 'classifier_pool', x, 'avg', size=(13, 13), stride=(1, 1), padding='VALID')
 
@@ -180,9 +182,9 @@ def net_preloaded(preloaded, input_image, pooling, needs_classifier=False, keep_
         net['classifier_actv'] = logits
 
     print("Network instance created: %fs" % (time.time() - cr_time))
-   
+
     return net, logits
-    
+
 def _conv_layer(net, name, input, weights, bias, padding='SAME', stride=(1, 1)):
     conv = tf.nn.conv2d(input, tf.constant(weights), strides=(1, stride[0], stride[1], 1),
             padding=padding)
@@ -194,7 +196,7 @@ def _act_layer(net, name, input):
     x = tf.nn.relu(input)
     net[name] = x
     return x
-    
+
 def _pool_layer(net, name, input, pooling, size=(2, 2), stride=(3, 3), padding='SAME'):
     if pooling == 'avg':
         x = tf.nn.avg_pool(input, ksize=(1, size[0], size[1], 1), strides=(1, stride[0], stride[1], 1),
@@ -221,7 +223,6 @@ def main():
     # Hyperparameters
     lr = 1e-4
     epochs = 1
-    batch_size = 128
     kp = 0.5
 
     # Load training data generator
@@ -234,8 +235,8 @@ def main():
 #	print("testing generator image and label")
 
     # Placeholders
-    images        = tf.placeholder(dtype=tf.float32, shape=(batch_size, helper.HEIGHT, helper.WIDTH, 3))
-    labels        = tf.placeholder(dtype=tf.int32, shape=batch_size)
+    images        = tf.placeholder(dtype=tf.float32, shape=(helper.batch_size, helper.HEIGHT, helper.WIDTH, 3), name="input_images")
+    labels        = tf.placeholder(dtype=tf.int32, shape=helper.batch_size)
     keep_prob     = tf.placeholder(dtype=tf.float32)
     learning_rate = tf.placeholder(dtype=tf.float32)
 
@@ -257,6 +258,7 @@ def main():
         sess = tf.get_default_session()
         for offset in range(0, num_examples, batch_size):
             batch_x, batch_y = X_data[offset:offset+batch_size], y_data[offset:offset+batch_size]
+            print("input imgs: ",batch_x.shape)
             accuracy = sess.run(accuracy_operation, feed_dict={images: batch_x,
                                                                labels: batch_y,
                                                                keep_prob: 1})
@@ -288,11 +290,15 @@ def main():
 
         # Initialize variables
         sess.run(tf.global_variables_initializer())
+        print("graph: ",sess.graph.get_operations())
+
+        # Tensorflow visualization
+        summary_writer = tf.summary.FileWriter(LOG_DIR, graph_def=sess.graph_def)
 
         print
         print('Training...')
         for epoch in range(epochs):
-            gen = get_batches_fn(batch_size)
+            gen = get_batches_fn(helper.batch_size)
             for X_train, y_train in gen:
 
                 _, loss = sess.run([training_operation, cross_entropy_loss],
@@ -308,7 +314,7 @@ def main():
         print("Model saved.")
 
 
-        test_accuracy = evaluate(X_test, y_test, batch_size)
+        test_accuracy = evaluate(X_test, y_test, helper.batch_size)
         print("Test Accuracy = {:.3f}".format(test_accuracy))
 
         '''
@@ -333,6 +339,6 @@ def main():
 
 #        print("\nclass: [%d] '%s' with %5.2f%% confidence" % (sqz_class, classes[sqz_class], sqznet_results[sqz_class] * 100))
          '''
-        
+
 if __name__ == '__main__':
     main()

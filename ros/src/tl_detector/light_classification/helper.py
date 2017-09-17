@@ -14,6 +14,7 @@ HEIGHT = 227
 # Ratio of training to test data [0:1]
 RATIO  = 0.8
 
+batch_size = 2
 
 
 def get_class(label):
