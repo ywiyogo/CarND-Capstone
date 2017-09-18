@@ -9,11 +9,10 @@ import time
 import helper
 import cv2
 
+from PIL import Image
+from argparse import ArgumentParser
 from tensorflow.contrib.layers import flatten
 
-from PIL import Image
-
-from argparse import ArgumentParser
 # Get the model directory
 LOG_DIR = os.getcwd()+ "/logs"
 
@@ -213,6 +212,7 @@ def build_parser():
     return ps
 
 def main():
+    print
 
     parser = build_parser()
     options = parser.parse_args()
@@ -222,7 +222,7 @@ def main():
 
     # Hyperparameters
     lr = 1e-4
-    epochs = 1
+    epochs = 5
     kp = 0.5
 
     # Load training data generator
@@ -230,7 +230,7 @@ def main():
     get_batches_fn, X_test, y_test = helper.gen_batch_function_LARA(data_dir_LARA)
 
     # Test generator image and label
-#    gen = get_batches_fn(batch_size)
+#    gen = get_batches_fn()
 #    for image, label in gen:
 #	print("testing generator image and label")
 
@@ -248,17 +248,17 @@ def main():
     training_operation = tf.train.AdamOptimizer(learning_rate = learning_rate).minimize(cross_entropy_loss)
 
     # Accuracy operation
-    correct_prediction = tf.equal(tf.argmax(logits, 1), tf.argmax(labels, 1))
+    correct_prediction = tf.equal(tf.argmax(logits, 1), tf.cast(labels, tf.int64))
     accuracy_operation = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
     # Evaluate the loss and accuracy of the model
-    def evaluate(X_data, y_data, batch_size):
+    def evaluate(X_data, y_data, batch_size, sess):
         num_examples = len(X_data)
         total_accuracy = 0
         sess = tf.get_default_session()
         for offset in range(0, num_examples, batch_size):
             batch_x, batch_y = X_data[offset:offset+batch_size], y_data[offset:offset+batch_size]
-            print("input imgs: ",batch_x.shape)
+
             accuracy = sess.run(accuracy_operation, feed_dict={images: batch_x,
                                                                labels: batch_y,
                                                                keep_prob: 1})
@@ -286,19 +286,20 @@ def main():
     config.gpu_options.allocator_type = 'BFC'
 
     # Simple classification
+    print
     with tf.Session(config=config) as sess:
+        print
 
         # Initialize variables
         sess.run(tf.global_variables_initializer())
-        print("graph: ",sess.graph.get_operations())
+        #print("graph: ",sess.graph.get_operations())
 
         # Tensorflow visualization
-        summary_writer = tf.summary.FileWriter(LOG_DIR, graph_def=sess.graph_def)
+        summary_writer = tf.summary.FileWriter(LOG_DIR, graph=sess.graph)
 
-        print
         print('Training...')
         for epoch in range(epochs):
-            gen = get_batches_fn(helper.batch_size)
+            gen = get_batches_fn()
             for X_train, y_train in gen:
 
                 _, loss = sess.run([training_operation, cross_entropy_loss],
@@ -309,13 +310,13 @@ def main():
                                   )
                 print('Epoch {}: loss = {}'.format(epoch+1, loss))
 
+            # Test accuracy
+            test_accuracy = evaluate(X_test, y_test, helper.batch_size, sess)
+            print("Test Accuracy = {:.2f}%".format(test_accuracy*100))
+
         # Save the variables to disk.
         saver.save(sess, "model/model")
         print("Model saved.")
-
-
-        test_accuracy = evaluate(X_test, y_test, helper.batch_size)
-        print("Test Accuracy = {:.3f}".format(test_accuracy))
 
         '''
         # serialize model to YAML

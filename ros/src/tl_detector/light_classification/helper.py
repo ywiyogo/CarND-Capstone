@@ -14,7 +14,7 @@ HEIGHT = 227
 # Ratio of training to test data [0:1]
 RATIO  = 0.8
 
-batch_size = 2
+batch_size = 128
 
 
 def get_class(label):
@@ -33,11 +33,14 @@ def get_class(label):
 
 def get_image(image_file):
     image = cv2.imread(image_file)
+    image = resize_image(image)
+    return image
+
+def resize_image(image):
     image = cv2.resize(image, (WIDTH, HEIGHT), interpolation = cv2.INTER_LINEAR)
 #    image = cv2.resize(image, (WIDTH, HEIGHT), interpolation = cv2.INTER_AREA)
 #    image = cv2.resize(image, (WIDTH, HEIGHT), interpolation = cv2.INTER_CUBIC)
     return image
-
 
 def gen_batch_function_LARA(data_path):
     """
@@ -64,14 +67,17 @@ def gen_batch_function_LARA(data_path):
     train_indices = indices[0:int(l*RATIO)]
     test_indices  = indices[int(l*RATIO)+1:l]
 
-    def get_batches_fn(batch_size):
+    # Make train and test sets a multiple of batch_size
+    train_length = int(math.floor( len(train_indices)/batch_size )*batch_size)
+    test_length  = int(math.floor( len(test_indices)/batch_size  )*batch_size)
+
+    def get_batches_fn():
 	"""
         Create batches of training data
         :param batch_size: Batch Size
         :return: Batches of training data
         """
-        length = int(math.floor(len(train_indices)/batch_size))
-        for batch_i in range(0, length*batch_size, batch_size):
+        for batch_i in range(0, train_length, batch_size):
             images = []
             labels = []
 
@@ -93,11 +99,11 @@ def gen_batch_function_LARA(data_path):
 
 
     # Get X_test and y_test
-    print('Generating test set... {}'.format(RATIO))
+    print('Generating test set... {}% train, {}% testing'.format(RATIO*100, (1-RATIO)*100))
     X_test = []
     y_test = []
 
-    for index in test_indices:
+    for index in test_indices[0:test_length]:
         label = (label_class[index])
         y_test.append(get_class(label))
 

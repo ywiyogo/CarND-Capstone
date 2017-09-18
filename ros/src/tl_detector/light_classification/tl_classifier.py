@@ -22,14 +22,6 @@ class TLClassifier(object):
 
             print('---------------- Loading complete ---------------')
 
-    def imread_resize(self, image_orig):
-        #img = scipy.misc.imresize(img_orig, (227, 227)).astype(np.float)
-        img = cv2.resize(image_orig,(227,227))
-        if len(img.shape) == 2:
-            # grayscale
-            img = np.dstack((img,img,img))
-        return img, img.shape
-
     def get_classification(self, image):
         """Determines the color of the traffic light in the image
 
@@ -49,8 +41,8 @@ class TLClassifier(object):
         self.graph = tf.get_default_graph()
 
         print("Image: ", image.shape)
-        resized_img, imgshape = self.imread_resize(image)
-        print("resized shape: ", imgshape)
+        resized_img = helper.resize_image(image)
+        print("resized shape: ", resized_img.shape)
         print('--------------- Getting classification --------------')
         # Placeholders
         # logits = tf.placeholder(dtype=tf.float32, name="logits")
