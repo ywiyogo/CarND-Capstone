@@ -6,7 +6,7 @@ import os
 import numpy as np
 # Get the model directory
 MODEL_DIR = os.getcwd()+ "/model"
-
+LOG_DIR = os.getcwd()+ "/logs"
 
 class TLClassifier(object):
     def __init__(self):
@@ -24,24 +24,7 @@ class TLClassifier(object):
 
             print('---------------- Loading complete ---------------')
 
-    def imread_resize(self, image_orig):
-        #img = scipy.misc.imresize(img_orig, (227, 227)).astype(np.float)
-        img = cv2.resize(image_orig,(227,227))
-        imgs = np.empty((helper.batch_size, 227, 227, 3))
-        for k in xrange(helper.batch_size):
-            imgs[k,:,:,:] = img
-        if len(img.shape) == 2:
-            # grayscale
-            img = np.dstack((img,img,img))
-        new_shape = (helper.batch_size,) + img.shape
-        return imgs, new_shape
 
-    def preprocess(self, image, mean_pixel):
-        swap_img = np.array(image)
-        img_out = np.array(swap_img)
-        img_out[:, :, 0] = swap_img[:, :, 2]
-        img_out[:, :, 2] = swap_img[:, :, 0]
-        return img_out - mean_pixel
 
     def get_classification(self, image):
         """Determines the color of the traffic light in the image
@@ -64,20 +47,24 @@ class TLClassifier(object):
         print("############################")
 
         print("Image: ", image.shape)
-        resized_img, resiz_imgshape = self.imread_resize(image)
+        resized_img = helper.resize_image(image)
+        print("resized shape: ", resized_img.shape)
+
+        expanded_img = np.expand_dims(resized_img, axis=0)
+
         mean_pixel = np.array([104.006, 116.669, 122.679], dtype=np.float32)
         #preproc_img = self.preprocess(resized_img, mean_pixel)
-        print("resized shape: ", resiz_imgshape)
         print('--------------- Getting classification --------------')
+
+
         # Placeholders
-        logits = tf.placeholder(dtype=tf.float32)
-        softmax_operation = tf.nn.softmax(logits)
-        print("graph: ",self.graph.get_operations())
+        relu_op = self.graph.get_tensor_by_name('Classifier/Relu_2:0')
+        summary_writer = tf.summary.FileWriter(LOG_DIR, graph=self.sess.graph)
+        #print("graph: ",self.graph.get_operations())
         #     # Get probability in range[0:1] of classification
-        predictions = self.sess.run(softmax_operation, feed_dict=
-                                        {"input_images:0": resized_img,
-                                        "Placeholder_2:0": 0.01,
-                                        "Placeholder_3:0": 0.8})
+        predictions = self.sess.run(relu_op, feed_dict=
+                                        {"input_images:0": expanded_img,
+                                         "keep_prob:0": 0.9})
         predictions = np.squeeze(predictions)
         print("Predictions: ", predictions)
         # sqznet_results = sqznet['classifier_actv'].eval(feed_dict={image: [preprocess(img_content, sqz_mean)], keep_prob: 1.})[0][0][0]
@@ -108,6 +95,6 @@ class TLClassifier(object):
 
 if __name__ == '__main__':
     tlc = TLClassifier()
-    img = cv2.imread(os.getcwd()+ "/images/Sim_images/green.jpg")
+    img = cv2.imread(os.getcwd()+ "/images/Sim_images/green_far.jpg")
     print(img.shape)
     tlc.get_classification(img)

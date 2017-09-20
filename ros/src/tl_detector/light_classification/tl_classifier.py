@@ -15,6 +15,8 @@ class TLClassifier(object):
 
         print('--------------- Loading classifier --------------')
         print
+        self.graph = tf.get_default_graph()
+
         with tf.Session() as self.sess:
         #http://cv-tricks.com/tensorflow-tutorial/save-restore-tensorflow-models-quick-complete-tutorial/
         # Load the meta graph and restore weights
@@ -36,26 +38,38 @@ class TLClassifier(object):
 
 
         self.saver.restore(self.sess, tf.train.latest_checkpoint(MODEL_DIR))
+        print("graph: ",self.graph.get_operations())
         print("self.saver: ", self.saver)
 
-        self.graph = tf.get_default_graph()
+
+        print("############################")
 
         print("Image: ", image.shape)
         resized_img = helper.resize_image(image)
         print("resized shape: ", resized_img.shape)
+
+        expanded_img = np.expand_dims(resized_img, axis=0)
+
+        mean_pixel = np.array([104.006, 116.669, 122.679], dtype=np.float32)
+        #preproc_img = self.preprocess(resized_img, mean_pixel)
         print('--------------- Getting classification --------------')
         # Placeholders
-        # logits = tf.placeholder(dtype=tf.float32, name="logits")
-        # softmax_operation = tf.nn.softmax(logits)
-        # #     # Get probability in range[0:1] of classification
+        relu_op = self.graph.get_tensor_by_name('Classifier/Relu_2:0')
+        summary_writer = tf.summary.FileWriter(LOG_DIR, graph=self.sess.graph)
+        #print("graph: ",self.graph.get_operations())
+        #     # Get probability in range[0:1] of classification
+        predictions = self.sess.run(relu_op, feed_dict=
+                                        {"input_images:0": expanded_img,
+                                         "keep_prob:0": 0.9})
+        predictions = np.squeeze(predictions)
+        print("Predictions: ", predictions)
+        # sqznet_results = sqznet['classifier_actv'].eval(feed_dict={image: [preprocess(img_content, sqz_mean)], keep_prob: 1.})[0][0][0]
+        # sqz_class = np.argmax(sqznet_results)
+        # print("sqz class: ", sqz_class)
 
-        # predictions = self.sess.run(softmax_operation, feed_dict=
-        #                                 {'input_images:0': resized_img})
-        # predictions = np.squeeze(predictions)
-        # print("Predictions: ", predictions)
-        # # Creates lookup
-        # # shows the 3 top prediction
-        # top_3 = predictions.argsort()[-3:][::-1]
+        # Creates lookup
+        # shows the 3 top prediction
+        top_3 = predictions.argsort()[-3:][::-1]
 
         #test_prediction = np.argmax(test_probability, 1)
         #     # top_k predictions
