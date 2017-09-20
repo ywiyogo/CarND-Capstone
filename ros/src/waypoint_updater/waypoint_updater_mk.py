@@ -204,7 +204,7 @@ class WaypointUpdater(object):
             
             #lane.waypoints = waypoints_under_lights(lane.waypoints, self.lights)
             
-            #self.final_waypoints_pub.publish(lane)
+            self.final_waypoints_pub.publish(lane)
 
 
     def traffic_cb(self, traffic_lights):
