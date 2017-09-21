@@ -32,7 +32,7 @@ class TLDetector(object):
         sub2 = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
 
         '''
-        /vehicle/traffic_lights provides you with the location of the traffic light in 3D map space and 
+        /vehicle/traffic_lights provides you with the location of the traffic light in 3D map space and
         helps you acquire an accurate ground truth data source for the traffic light
         classifier by sending the current color state of all traffic lights in the
         simulator. When testing on the vehicle, the color state will not be available. You'll need to
@@ -224,7 +224,7 @@ class TLDetector(object):
             int: ID of traffic light color (specified in styx_msgs/TrafficLight)
 
         """
-        enable_imshow= True    #activate to see the camera image
+        enable_imshow= False    #activate to see the camera image
         if enable_imshow:
             cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
             cv2.imshow("Image window", cv_image)
