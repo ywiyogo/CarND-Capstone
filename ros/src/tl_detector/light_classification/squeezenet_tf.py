@@ -111,100 +111,104 @@ def net_preloaded(preloaded, input_image, pooling, needs_classifier=False, keep_
 
     # Feature extractor
     #####################
+    with tf.name_scope("FeatureExtractor"):
+        # conv1 cluster
+        layer_name = 'conv1'
+        weights, biases = get_weights_biases(preloaded, layer_name)
+        x = _conv_layer(net, layer_name + '_conv', x, weights, biases, padding='VALID', stride=(2, 2))
+        x = _act_layer(net, layer_name + '_actv', x)
+        x = _pool_layer(net, 'pool1_pool', x, pooling, size=(3, 3), stride=(2, 2), padding='VALID')
 
-    # conv1 cluster
-    layer_name = 'conv1'
-    weights, biases = get_weights_biases(preloaded, layer_name)
-    x = _conv_layer(net, layer_name + '_conv', x, weights, biases, padding='VALID', stride=(2, 2))
-    x = _act_layer(net, layer_name + '_actv', x)
-    x = _pool_layer(net, 'pool1_pool', x, pooling, size=(3, 3), stride=(2, 2), padding='VALID')
+        # fire2 + fire3 clusters
+        x = fire_cluster(net, x, preloaded, cluster_name='fire2')
+        fire2_bypass = x
+        x = fire_cluster(net, x, preloaded, cluster_name='fire3')
+        x = _pool_layer(net, 'pool3_pool', x, pooling, size=(3, 3), stride=(2, 2), padding='VALID')
 
-    # fire2 + fire3 clusters
-    x = fire_cluster(net, x, preloaded, cluster_name='fire2')
-    fire2_bypass = x
-    x = fire_cluster(net, x, preloaded, cluster_name='fire3')
-    x = _pool_layer(net, 'pool3_pool', x, pooling, size=(3, 3), stride=(2, 2), padding='VALID')
+        # fire4 + fire5 clusters
+        x = fire_cluster(net, x, preloaded, cluster_name='fire4')
+        fire4_bypass = x
+        x = fire_cluster(net, x, preloaded, cluster_name='fire5')
+        x = _pool_layer(net, 'pool5_pool', x, pooling, size=(3, 3), stride=(2, 2), padding='VALID')
 
-    # fire4 + fire5 clusters
-    x = fire_cluster(net, x, preloaded, cluster_name='fire4')
-    fire4_bypass = x
-    x = fire_cluster(net, x, preloaded, cluster_name='fire5')
-    x = _pool_layer(net, 'pool5_pool', x, pooling, size=(3, 3), stride=(2, 2), padding='VALID')
-
-    # remainder (no pooling)
-    x = fire_cluster(net, x, preloaded, cluster_name='fire6')
-    fire6_bypass = x
-    x = fire_cluster(net, x, preloaded, cluster_name='fire7')
-    x = fire_cluster(net, x, preloaded, cluster_name='fire8')
-    x = fire_cluster(net, x, preloaded, cluster_name='fire9')
+        # remainder (no pooling)
+        x = fire_cluster(net, x, preloaded, cluster_name='fire6')
+        fire6_bypass = x
+        x = fire_cluster(net, x, preloaded, cluster_name='fire7')
+        x = fire_cluster(net, x, preloaded, cluster_name='fire8')
+        x = fire_cluster(net, x, preloaded, cluster_name='fire9')
 
     # Classifier
     #####################
     if needs_classifier == True:
-        # Dropout [use value of 50% when training]
-        x = tf.nn.dropout(x, keep_prob)
+        with tf.name_scope("Classifier"):
+            # Dropout [use value of 50% when training]
+            x = tf.nn.dropout(x, keep_prob)
 
-        # Fixed global avg pool/softmax classifier:
-        # [227, 227, 3] -> 1000 classes
-        layer_name = 'conv10'
-        weights, biases = get_weights_biases(preloaded, layer_name)
-        x = _conv_layer(net, layer_name + '_conv', x, weights, biases)
-        x = _act_layer(net, layer_name + '_actv', x)
+            # Fixed global avg pool/softmax classifier:
+            # [227, 227, 3] -> 1000 classes
+            layer_name = 'conv10'
+            weights, biases = get_weights_biases(preloaded, layer_name)
+            x = _conv_layer(net, layer_name + '_conv', x, weights, biases)
+            x = _act_layer(net, layer_name + '_actv', x)
 
-        # Global Average Pooling
-        x = _pool_layer(net, 'classifier_pool', x, 'avg', size=(13, 13), stride=(1, 1), padding='VALID')
+            # Global Average Pooling
+            x = _pool_layer(net, 'classifier_pool', x, 'avg', size=(13, 13), stride=(1, 1), padding='VALID')
 
-        # Flatten. Input = 1x1x1x1000. Output = 1x1000.
-        fc0 = flatten(x)
+            # Flatten. Input = 1x1x1x1000. Output = 1x1000.
+            fc0 = flatten(x)
 
-        # Fully Connected. Input = 1000. Output = 100.
-        fc1_W = tf.Variable(tf.truncated_normal(shape=(1000, 100), mean = 0, stddev = 0.1))
-        fc1_b = tf.Variable(tf.zeros(100))
-        fc1   = tf.matmul(fc0, fc1_W) + fc1_b
-        # Activation.
-        fc1 = tf.nn.relu(fc1)
+            # Fully Connected. Input = 1000. Output = 100.
+            fc1_W = tf.Variable(tf.truncated_normal(shape=(1000, 100), mean = 0, stddev = 0.1))
+            fc1_b = tf.Variable(tf.zeros(100))
+            fc1   = tf.matmul(fc0, fc1_W) + fc1_b
+            # Activation.
+            fc1 = tf.nn.relu(fc1)
 
-        # Fully Connected. Input = 100. Output = 20.
-        fc2_W = tf.Variable(tf.truncated_normal(shape=(100, 20), mean = 0, stddev = 0.1))
-        fc2_b = tf.Variable(tf.zeros(20))
-        fc2   = tf.matmul(fc1, fc2_W) + fc2_b
-        # Activation.
-        fc2 = tf.nn.relu(fc2)
+            # Fully Connected. Input = 100. Output = 20.
+            fc2_W = tf.Variable(tf.truncated_normal(shape=(100, 20), mean = 0, stddev = 0.1))
+            fc2_b = tf.Variable(tf.zeros(20))
+            fc2   = tf.matmul(fc1, fc2_W) + fc2_b
+            # Activation.
+            fc2 = tf.nn.relu(fc2)
 
-        # Fully Connected. Input = 20. Output = 4.
-        fc3_W = tf.Variable(tf.truncated_normal(shape=(20, 4), mean = 0, stddev = 0.1))
-        fc3_b = tf.Variable(tf.zeros(4))
-        fc3   = tf.matmul(fc2, fc3_W) + fc3_b
-        # Activation.
-        logits = tf.nn.relu(fc3)
+            # Fully Connected. Input = 20. Output = 4.
+            fc3_W = tf.Variable(tf.truncated_normal(shape=(20, 4), mean = 0, stddev = 0.1))
+            fc3_b = tf.Variable(tf.zeros(4))
+            fc3   = tf.matmul(fc2, fc3_W) + fc3_b
+            # Activation.
+            logits = tf.nn.relu(fc3)
 
-        net['classifier_actv'] = logits
+            net['classifier_actv'] = logits
 
     print("Network instance created: %fs" % (time.time() - cr_time))
 
     return net, logits
 
 def _conv_layer(net, name, input, weights, bias, padding='SAME', stride=(1, 1)):
-    conv = tf.nn.conv2d(input, tf.constant(weights), strides=(1, stride[0], stride[1], 1),
-            padding=padding)
-    x = tf.nn.bias_add(conv, bias)
-    net[name] = x
-    return x
+    with tf.name_scope(name):
+        conv = tf.nn.conv2d(input, tf.constant(weights), strides=(1, stride[0], stride[1], 1),
+                padding=padding)
+        x = tf.nn.bias_add(conv, bias)
+        net[name] = x
+        return x
 
 def _act_layer(net, name, input):
-    x = tf.nn.relu(input)
-    net[name] = x
-    return x
+    with tf.name_scope(name):
+        x = tf.nn.relu(input)
+        net[name] = x
+        return x
 
 def _pool_layer(net, name, input, pooling, size=(2, 2), stride=(3, 3), padding='SAME'):
-    if pooling == 'avg':
-        x = tf.nn.avg_pool(input, ksize=(1, size[0], size[1], 1), strides=(1, stride[0], stride[1], 1),
-                padding=padding)
-    else:
-        x = tf.nn.max_pool(input, ksize=(1, size[0], size[1], 1), strides=(1, stride[0], stride[1], 1),
-                padding=padding)
-    net[name] = x
-    return x
+    with tf.name_scope(name):
+        if pooling == 'avg':
+            x = tf.nn.avg_pool(input, ksize=(1, size[0], size[1], 1), strides=(1, stride[0], stride[1], 1),
+                    padding=padding)
+        else:
+            x = tf.nn.max_pool(input, ksize=(1, size[0], size[1], 1), strides=(1, stride[0], stride[1], 1),
+                    padding=padding)
+        net[name] = x
+        return x
 
 def build_parser():
     ps = ArgumentParser()
@@ -222,7 +226,7 @@ def main():
 
     # Hyperparameters
     lr = 1e-4
-    epochs = 5
+    epochs = 1
     kp = 0.5
 
     # Load training data generator
@@ -235,21 +239,24 @@ def main():
 #	print("testing generator image and label")
 
     # Placeholders
-    images        = tf.placeholder(dtype=tf.float32, shape=(helper.batch_size, helper.HEIGHT, helper.WIDTH, 3), name="input_images")
-    labels        = tf.placeholder(dtype=tf.int32, shape=helper.batch_size)
-    keep_prob     = tf.placeholder(dtype=tf.float32)
-    learning_rate = tf.placeholder(dtype=tf.float32)
+    images        = tf.placeholder(dtype=tf.float32, shape=(None, helper.HEIGHT, helper.WIDTH, 3), name="input_images")
+    labels        = tf.placeholder(dtype=tf.int32, shape=helper.batch_size, name="labels")
+    keep_prob     = tf.placeholder(dtype=tf.float32, name="keep_prob")
+    learning_rate = tf.placeholder(dtype=tf.float32, name="lrate")
 
     # SqueezeNet model
     model, logits = net_preloaded(data, images, 'max', True, keep_prob)
 
-    # Loss and Training operations
-    cross_entropy_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=labels, logits=logits))
-    training_operation = tf.train.AdamOptimizer(learning_rate = learning_rate).minimize(cross_entropy_loss)
+    with tf.name_scope("Retraining"):
+        # Loss and Training operations
+        cross_entropy_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=labels, logits=logits))
+        training_operation = tf.train.AdamOptimizer(learning_rate = learning_rate).minimize(cross_entropy_loss)
 
-    # Accuracy operation
-    correct_prediction = tf.equal(tf.argmax(logits, 1), tf.cast(labels, tf.int64))
-    accuracy_operation = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+    with tf.name_scope("Accuracy"):
+        # Accuracy operation
+        correct_prediction = tf.equal(tf.argmax(logits, 1), tf.cast(labels, tf.int64))
+        accuracy_operation = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+        tf.summary.scalar("accuracy", accuracy_operation)
 
     # Evaluate the loss and accuracy of the model
     def evaluate(X_data, y_data, batch_size, sess):
@@ -294,8 +301,9 @@ def main():
         sess.run(tf.global_variables_initializer())
         #print("graph: ",sess.graph.get_operations())
 
+        summ = tf.summary.merge_all()
         # Tensorflow visualization
-        summary_writer = tf.summary.FileWriter(LOG_DIR, graph=sess.graph)
+        summ_writer = tf.summary.FileWriter(LOG_DIR, graph=sess.graph)
 
         print('Training...')
         for epoch in range(epochs):
@@ -312,6 +320,7 @@ def main():
 
             # Test accuracy
             test_accuracy = evaluate(X_test, y_test, helper.batch_size, sess)
+
             print("Test Accuracy = {:.2f}%".format(test_accuracy*100))
 
         # Save the variables to disk.
