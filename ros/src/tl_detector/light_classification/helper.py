@@ -112,3 +112,7 @@ def gen_batch_function_LARA(data_path):
                 X_test.append(get_image(image_file))
                 break
     return get_batches_fn, np.array(X_test), np.array(y_test)
+
+def calc_softmax(x):
+    """Compute softmax values for each sets of scores in x."""
+    return np.exp(x)/np.sum(np.exp(x), axis=0)

@@ -60,41 +60,28 @@ class TLClassifier(object):
         # Placeholders
         relu_op = self.graph.get_tensor_by_name('Classifier/Relu_2:0')
         summary_writer = tf.summary.FileWriter(LOG_DIR, graph=self.sess.graph)
-        #print("graph: ",self.graph.get_operations())
-        #     # Get probability in range[0:1] of classification
+
+        # softmax = tf.nn.softmax(logits)
+
+        # with tf.Session() as sess:
+        #     output = sess.run(softmax, feed_dict={logits: logit_data})
+
         predictions = self.sess.run(relu_op, feed_dict=
                                         {"input_images:0": expanded_img,
-                                         "keep_prob:0": 0.9})
-        predictions = np.squeeze(predictions)
+                                         "keep_prob:0": 1.})
+        
         print("Predictions: ", predictions)
-        # sqznet_results = sqznet['classifier_actv'].eval(feed_dict={image: [preprocess(img_content, sqz_mean)], keep_prob: 1.})[0][0][0]
-        # sqz_class = np.argmax(sqznet_results)
-        # print("sqz class: ", sqz_class)
-
-        # Creates lookup
-        # shows the 3 top prediction
-        top_3 = predictions.argsort()[-3:][::-1]
-
-        #test_prediction = np.argmax(test_probability, 1)
-        #     # top_k predictions
-        #     topk = sess.run(tf.nn.top_k(tf.constant(test_probability), k=3))
-        #     print('test_probability', test_probability)
-        #     print('test_prediction', test_prediction)
-        #     print('topk', topk)
-
-# Classifying
-        # sqznet_results = self.saver['classifier_actv'].eval(feed_dict={image: [preprocess(image, sqz_mean)], keep_prob: 1.})[0]
-
-        # # Outputting result
-        # sqz_class = np.argmax(sqznet_results)
-
-        # print("\nclass: [%d] '%s' with %5.2f%% confidence" % (sqz_class, classes[sqz_class], sqznet_results[sqz_class] * 100))
-
+        predictions = np.squeeze(predictions)   #squeeze array to 1 dim array
+        softmax = helper.calc_softmax(predictions)
+        max_index = np.argmax(softmax)
+        print("Softmax: ", softmax)
+        print("argmax: ", max_index)
+        return max_index
         print('--------------- Classification complete -------------')
         #return TrafficLight.UNKNOWN
 
 if __name__ == '__main__':
     tlc = TLClassifier()
-    img = cv2.imread(os.getcwd()+ "/images/Sim_images/green_far.jpg")
+    img = cv2.imread(os.getcwd()+ "/images/Sim_images/green.jpg")
     print(img.shape)
     tlc.get_classification(img)
