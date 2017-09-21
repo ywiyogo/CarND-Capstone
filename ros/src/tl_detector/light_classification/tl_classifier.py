@@ -21,7 +21,7 @@ class TLClassifier(object):
         #http://cv-tricks.com/tensorflow-tutorial/save-restore-tensorflow-models-quick-complete-tutorial/
         # Load the meta graph and restore weights
             self.saver = tf.train.import_meta_graph(MODEL_DIR + '/model.meta')
-            self.saver.restore(self.sess, tf.train.latest_checkpoint(MODEL_DIR))
+
             print('---------------- Loading complete ---------------')
 
     def get_classification(self, image):
@@ -36,9 +36,10 @@ class TLClassifier(object):
         """
         #TODO implement light color prediction
 
-        print("Image: ", image.shape)
+        self.saver.restore(self.sess, tf.train.latest_checkpoint(MODEL_DIR))
+        #print("Image: ", image.shape)
         resized_img = helper.resize_image(image)
-        print("resized shape: ", resized_img.shape)
+        #print("resized shape: ", resized_img.shape)
 
         expanded_img = np.expand_dims(resized_img, axis=0)
 
@@ -50,21 +51,17 @@ class TLClassifier(object):
         # Placeholders
         relu_op = self.graph.get_tensor_by_name('Classifier/Relu_2:0')
 
-        # softmax = tf.nn.softmax(logits)
-        # with tf.Session() as sess:
-        #     output = sess.run(softmax, feed_dict={logits: logit_data})
-
         predictions = self.sess.run(relu_op, feed_dict=
                                         {"input_images:0": expanded_img,
                                          "keep_prob:0": 1.})
-        
+
         print("Predictions: ", predictions)
         predictions = np.squeeze(predictions)   #squeeze array to 1 dim array
         softmax = helper.calc_softmax(predictions)
         max_index = np.argmax(softmax)
         print("Softmax: ", softmax)
         print("argmax: ", max_index)
-        
+
         print('--------------- Classification complete -------------')
         if max_index == 0:
             return TrafficLight.RED

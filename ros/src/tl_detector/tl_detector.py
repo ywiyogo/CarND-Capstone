@@ -32,7 +32,7 @@ class TLDetector(object):
         sub2 = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
 
         '''
-        /vehicle/traffic_lights provides you with the location of the traffic light in 3D map space and 
+        /vehicle/traffic_lights provides you with the location of the traffic light in 3D map space and
         helps you acquire an accurate ground truth data source for the traffic light
         classifier by sending the current color state of all traffic lights in the
         simulator. When testing on the vehicle, the color state will not be available. You'll need to
@@ -85,8 +85,8 @@ class TLDetector(object):
     def traffic_cb(self, msg):
         if not self.lights:
             self.lights = msg.lights
-            #print("[TLD] TL: ", dir(self.lights))
-            #print(self.lights[0])
+            print("[TLD] TL: ", dir(self.lights))
+            print("light[0] ", self.lights[0])
             for i in range(0, len(self.lights)):
                 tl_pose=[self.lights[i].pose.pose.position.x,self.lights[i].pose.pose.position.y]
                 self.cust_tlights.append(tl_pose)
@@ -245,12 +245,15 @@ class TLDetector(object):
             dist,ind = spatial.KDTree(self.cust_tlights).query(cust_pose)
 
             diff_x = self.cust_tlights[ind][0] - self.pose.pose.position.x
-            if(dist < 70):
+            cam_dist_to_tl = 250
+            if(dist < cam_dist_to_tl):
                 if diff_x >0:
+                    light = self.lights[ind]
                     if self.detected_tlight != self.cust_tlights[ind]:
                         self.detected_tlight = self.cust_tlights[ind]
-                        light = self.lights[ind]
                         print("[TLD] TL %d found, A front distance to current pose: %f" % (ind, dist))
+            else:
+                self.detected_tlight = None
 
 
                 #else:
