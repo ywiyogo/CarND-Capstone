@@ -49,7 +49,7 @@ def constant_v_waypoints(waypoints, velocity, incremental=True):
 def waypoints_under_lights(waypoints, lights, incremental=True):
     look_ahead = 50
     road_width = 30
-    length_zero_velocity = 8 
+    length_zero_velocity = 8
 
     final_waypoints = []
 
@@ -70,7 +70,7 @@ def waypoints_under_lights(waypoints, lights, incremental=True):
         direction_y = forward_direction * delta_y[index] / delta_s[index]
 
         longitudinal_road_vector = np.array([direction_x, direction_y])
-        lateral_road_vector = np.array([- direction_y, direction_y])
+        lateral_road_vector = np.array([-direction_y, direction_y])
 
         ratio = 1
         x_waypoint = last_waypoint.pose.pose.position.x
@@ -84,23 +84,23 @@ def waypoints_under_lights(waypoints, lights, incremental=True):
             lateral_position = relative_position.dot(lateral_road_vector)
 
             if (longitudinal_position >= 0 and light.state == 0
-                and longitudinal_position <= length_zero_velocity
-                and abs(lateral_position) <= road_width):
+                    and longitudinal_position <= length_zero_velocity
+                    and abs(lateral_position) <= road_width):
                 this_ratio = 0
             elif (longitudinal_position >= 0 and light.state == 0
-                  and longitudinal_position <= look_ahead
-                  and abs(lateral_position) <= road_width):
+                    and longitudinal_position <= look_ahead
+                    and abs(lateral_position) <= road_width):
                 this_ratio = ((longitudinal_position - length_zero_velocity)
-                         / (look_ahead - length_zero_velocity))
+                              / (look_ahead - length_zero_velocity))
             else:
                 this_ratio = 1
 
             ratio = min(this_ratio, ratio)
-                
+
         old_velocity_x = last_waypoint.twist.twist.linear.x
         old_velocity_y = last_waypoint.twist.twist.linear.y
         last_waypoint.twist.twist.linear.x = old_velocity_x * ratio
-        last_waypoint.twist.twist.linear.y = old_velocity_x * ratio
+        last_waypoint.twist.twist.linear.y = old_velocity_y * ratio
         final_waypoints.append(last_waypoint)
         last_waypoint = waypoint
 
@@ -177,7 +177,7 @@ class WaypointUpdater(object):
             #                                                          closest_wp_index+LOOKAHEAD_WPS],
             #                                          velocity)
             # lane.waypoints = waypoints_under_lights(velocity_waypoints, self.lights)
-            
+
             self.final_waypoints_pub.publish(lane)
 
 
