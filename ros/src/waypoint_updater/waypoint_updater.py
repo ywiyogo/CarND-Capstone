@@ -10,11 +10,6 @@ import scipy.spatial
 import math
 import numpy as np
 
-try:
-    from functools import lru_cache
-except ImportError:
-    from backports.functools_lru_cache import lru_cache
-
 
 LOOKAHEAD_WPS = 30  # 200 requires too much CPU.
 
