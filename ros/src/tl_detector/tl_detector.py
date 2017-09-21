@@ -32,7 +32,7 @@ class TLDetector(object):
         sub2 = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
 
         '''
-        /vehicle/traffic_lights provides you with the location of the traffic light in 3D map space and
+        /vehicle/traffic_lights provides you with the location of the traffic light in 3D map space and 
         helps you acquire an accurate ground truth data source for the traffic light
         classifier by sending the current color state of all traffic lights in the
         simulator. When testing on the vehicle, the color state will not be available. You'll need to
@@ -93,7 +93,7 @@ class TLDetector(object):
 
     def image_cb(self, msg):
         """Identifies red lights in the incoming camera image and publishes the index
-            of the waypoint closest to the red light's stop line to /traffic_waypoint
+            of the waypoint closest to the red light to /traffic_waypoint
 
         Args:
             msg (Image): image from car-mounted camera
@@ -220,11 +220,7 @@ class TLDetector(object):
             location and color
 
         Returns:
-<<<<<<< HEAD
             int: index of waypoint closest to the upcoming traffic light (-1 if none exists)
-=======
-            int: index of waypoint closes to the upcoming stop line for a traffic light (-1 if none exists)
->>>>>>> upstream/master
             int: ID of traffic light color (specified in styx_msgs/TrafficLight)
 
         """
@@ -235,18 +231,12 @@ class TLDetector(object):
             cv2.waitKey(1)
 
         light = None
-<<<<<<< HEAD
         light_positions = self.config['light_positions']
         # NOTE, YW: the above light_positions is based on the sim_traffic_light_config.xml
         # but the entries are not the same as from the traffic_cb function !!
         # Currently I concern only the traffic_cb
         #print("light pos: ", light_positions)
 
-=======
-
-        # List of positions that correspond to the line to stop in front of for a given intersection
-        stop_line_positions = self.config['stop_line_positions']
->>>>>>> upstream/master
         if(self.pose):
             car_position = self.get_closest_waypoint(self.pose.pose)
 

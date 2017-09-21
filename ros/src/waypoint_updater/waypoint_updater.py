@@ -153,7 +153,8 @@ class WaypointUpdater(object):
         self.waypoints = None
         self.lights = []
 
-        rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb, queue_size=1)
+        self.waypoints_subscriber = rospy.Subscriber('/base_waypoints', Lane,
+                                                     self.waypoints_cb, queue_size=1)
         rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb, queue_size=1)
         rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_cb, queue_size=1)
 
@@ -162,6 +163,7 @@ class WaypointUpdater(object):
 
     def waypoints_cb(self, lane):
         self.waypoints = lane.waypoints
+        self.waypoints_subscriber.unregister()
 
     def pose_cb(self, pose):
 
@@ -170,13 +172,10 @@ class WaypointUpdater(object):
             closest_wp_index = get_closest_index_behind(self.waypoints, pose)
             waypoints_2laps = self.waypoints + self.waypoints
             lane = Lane()
-            lane.waypoints = constant_v_waypoints(waypoints_2laps[closest_wp_index:
-                                                                  closest_wp_index+LOOKAHEAD_WPS],
-                                                  velocity)
-            #velocity_waypoints = constant_v_waypoints(waypoints_2laps[closest_wp_index:
-            #                                                          closest_wp_index+LOOKAHEAD_WPS],
-            #                                          velocity)
-            # lane.waypoints = waypoints_under_lights(velocity_waypoints, self.lights)
+            velocity_waypoints = constant_v_waypoints(waypoints_2laps[closest_wp_index:
+                                                                      closest_wp_index+LOOKAHEAD_WPS],
+                                                      velocity)
+            lane.waypoints = waypoints_under_lights(velocity_waypoints, self.lights)
 
             self.final_waypoints_pub.publish(lane)
 
