@@ -85,8 +85,8 @@ class TLDetector(object):
     def traffic_cb(self, msg):
         if not self.lights:
             self.lights = msg.lights
-            print("[TLD] TL: ", dir(self.lights))
-            print("light[0] ", self.lights[0])
+            #print("[TLD] TL: ", dir(self.lights))
+            #print("light[0] ", self.lights[0])
             for i in range(0, len(self.lights)):
                 tl_pose=[self.lights[i].pose.pose.position.x,self.lights[i].pose.pose.position.y]
                 self.cust_tlights.append(tl_pose)
@@ -224,9 +224,9 @@ class TLDetector(object):
             int: ID of traffic light color (specified in styx_msgs/TrafficLight)
 
         """
-        enable_imshow= False    #activate to see the camera image
+        enable_imshow= True    #activate to see the camera image
         if enable_imshow:
-            cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, desired_encoding="passthrough")
+            cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
             cv2.imshow("Image window", cv_image)
             cv2.waitKey(1)
 
@@ -249,6 +249,7 @@ class TLDetector(object):
             if(dist < cam_dist_to_tl):
                 if diff_x >0:
                     light = self.lights[ind]
+                    print("light state: ", self.lights[ind].state)
                     if self.detected_tlight != self.cust_tlights[ind]:
                         self.detected_tlight = self.cust_tlights[ind]
                         print("[TLD] TL %d found, A front distance to current pose: %f" % (ind, dist))
@@ -262,6 +263,7 @@ class TLDetector(object):
 
         if light:
             state = self.get_light_state(light)
+            print("TL state: ",state)
             return light, state
         self.waypoints = None
         return -1, TrafficLight.UNKNOWN

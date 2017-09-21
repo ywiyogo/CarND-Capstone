@@ -4,6 +4,7 @@ import helper
 import cv2
 import os
 import numpy as np
+import click
 # Get the model directory
 MODEL_DIR = os.getcwd()+ "/model"
 LOG_DIR = os.getcwd()+ "/logs"
@@ -40,13 +41,10 @@ class TLClassifier(object):
 
 
         self.saver.restore(self.sess, tf.train.latest_checkpoint(MODEL_DIR))
-        print("graph: ",self.graph.get_operations())
-        print("self.saver: ", self.saver)
+        #print("graph: ",self.graph.get_operations())
+        #print("self.saver: ", self.saver)
 
-
-        print("############################")
-
-        print("Image: ", image.shape)
+        #print("Image: ", image.shape)
         resized_img = helper.resize_image(image)
         print("resized shape: ", resized_img.shape)
 
@@ -69,7 +67,7 @@ class TLClassifier(object):
         predictions = self.sess.run(relu_op, feed_dict=
                                         {"input_images:0": expanded_img,
                                          "keep_prob:0": 1.})
-        
+
         print("Predictions: ", predictions)
         predictions = np.squeeze(predictions)   #squeeze array to 1 dim array
         softmax = helper.calc_softmax(predictions)
@@ -80,8 +78,12 @@ class TLClassifier(object):
         print('--------------- Classification complete -------------')
         #return TrafficLight.UNKNOWN
 
-if __name__ == '__main__':
+@click.command()
+@click.argument('img_path')
+def main(img_path):
     tlc = TLClassifier()
-    img = cv2.imread(os.getcwd()+ "/images/Sim_images/green.jpg")
-    print(img.shape)
+    img = cv2.imread(img_path)
     tlc.get_classification(img)
+
+if __name__ == '__main__':
+    main()
