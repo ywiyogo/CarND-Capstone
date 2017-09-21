@@ -67,17 +67,17 @@ def gen_batch_function_LARA(data_path):
     train_indices = indices[0:int(l*RATIO)]
     test_indices  = indices[int(l*RATIO)+1:l]
 
-    # Make train and test sets a multiple of batch_size
-    train_length = int(math.floor( len(train_indices)/batch_size )*batch_size)
-    test_length  = int(math.floor( len(test_indices)/batch_size  )*batch_size)
-
     def get_batches_fn():
 	"""
         Create batches of training data
         :param batch_size: Batch Size
         :return: Batches of training data
         """
-        for batch_i in range(0, train_length, batch_size):
+
+        # Shuffle training data for each epoch
+        random.shuffle(train_indices)
+
+        for batch_i in range(0, len(train_indices), batch_size):
             images = []
             labels = []
 
@@ -103,7 +103,7 @@ def gen_batch_function_LARA(data_path):
     X_test = []
     y_test = []
 
-    for index in test_indices[0:test_length]:
+    for index in test_indices:
         label = (label_class[index])
         y_test.append(get_class(label))
 
