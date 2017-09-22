@@ -126,7 +126,7 @@ class DBWNode(object):
                                                              angular_velocity=self.target_angular_velocity,
                                                              current_velocity=self.current_linear_velocity)
 
-                throttle, brake = self.speed_controller.control(target_linear_velocity=10,#self.target_linear_velocity,
+                throttle, brake = self.speed_controller.control(target_linear_velocity=self.target_linear_velocity,
                                                                 current_linear_velocity=self.current_linear_velocity,
                                                                 current_linear_acceleration=self.current_linear_acceleration)
 
