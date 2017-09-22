@@ -48,10 +48,11 @@ class TLClassifier(object):
         resized_img = helper.resize_image(image)
         print("resized shape: ", resized_img.shape)
 
-        expanded_img = np.expand_dims(resized_img, axis=0)
+
 
         mean_pixel = np.array([104.006, 116.669, 122.679], dtype=np.float32)
-        #preproc_img = self.preprocess(resized_img, mean_pixel)
+        #preproc_img = helper.preprocess(resized_img, mean_pixel)
+        expanded_img = np.expand_dims(resized_img, axis=0)
         print('--------------- Getting classification --------------')
 
 

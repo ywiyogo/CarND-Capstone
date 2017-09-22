@@ -10,11 +10,7 @@ MODEL_DIR = os.getcwd()+ "/light_classification/model"
 
 class TLClassifier(object):
     def __init__(self):
-        #TODO load classifier
-        pass
-
         print('--------------- Loading classifier --------------')
-        print
         self.graph = tf.get_default_graph()
 
         with tf.Session() as self.sess:
@@ -44,7 +40,7 @@ class TLClassifier(object):
         expanded_img = np.expand_dims(resized_img, axis=0)
 
         mean_pixel = np.array([104.006, 116.669, 122.679], dtype=np.float32)
-        #preproc_img = self.preprocess(resized_img, mean_pixel)
+        #preproc_img = helper.preprocess(resized_img, mean_pixel)
         print('--------------- Getting classification --------------')
 
 

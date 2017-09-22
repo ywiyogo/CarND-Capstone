@@ -116,3 +116,10 @@ def gen_batch_function_LARA(data_path):
 def calc_softmax(x):
     """Compute softmax values for each sets of scores in x."""
     return np.exp(x)/np.sum(np.exp(x), axis=0)
+
+def preprocess(image, mean_pixel):
+    swap_img = np.array(image)
+    img_out = np.array(swap_img)
+    img_out[:, :, 0] = swap_img[:, :, 2]
+    img_out[:, :, 2] = swap_img[:, :, 0]
+    return img_out - mean_pixel
