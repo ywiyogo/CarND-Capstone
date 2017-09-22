@@ -1,4 +1,4 @@
-# Copyright (c) 2017 Andrey Voroshilov
+# Copyright (c) 2017 Andrey Voroshilov (modified)
 
 #!/usr/bin/python
 import os
@@ -13,20 +13,8 @@ from PIL import Image
 from argparse import ArgumentParser
 from tensorflow.contrib.layers import flatten
 
-# Get the model directory
+# Get the log directory
 LOG_DIR = os.getcwd()+ "/logs"
-
-def imread_resize(path):
-    img_orig = scipy.misc.imread(path)
-    img = scipy.misc.imresize(img_orig, (227, 227)).astype(np.float)
-    if len(img.shape) == 2:
-        # grayscale
-        img = np.dstack((img,img,img))
-    return img, img_orig.shape
-
-def imsave(path, img):
-    img = np.clip(img, 0, 255).astype(np.uint8)
-    Image.fromarray(img).save(path, quality=95)
 
 def get_dtype_np():
     return np.float32
@@ -65,13 +53,6 @@ def preprocess(image, mean_pixel):
     img_out[:, :, 2] = swap_img[:, :, 0]
     return img_out - mean_pixel
 
-def unprocess(image, mean_pixel):
-    swap_img = np.array(image + mean_pixel)
-    img_out = np.array(swap_img)
-    img_out[:, :, 0] = swap_img[:, :, 2]
-    img_out[:, :, 2] = swap_img[:, :, 0]
-    return img_out
-
 def get_weights_biases(preloaded, layer_name):
     weights, biases = preloaded[layer_name]
     biases = biases.reshape(-1)
@@ -102,12 +83,14 @@ def fire_cluster(net, x, preloaded, cluster_name):
 
     return x
 
-def net_preloaded(preloaded, input_image, pooling, needs_classifier=False, keep_prob=None):
+def net_preloaded(preloaded, input_image, pooling, keep_prob=None):
     net = {}
     cr_time = time.time()
 
 #    x = tf.cast(input_image, get_dtype_tf())
     x = input_image
+    sigma = 0.1
+    mu = 0
 
     # Feature extractor
     #####################
@@ -140,46 +123,54 @@ def net_preloaded(preloaded, input_image, pooling, needs_classifier=False, keep_
 
     # Classifier
     #####################
-    if needs_classifier == True:
-        with tf.name_scope("Classifier"):
-            # Dropout [use value of 50% when training]
-            x = tf.nn.dropout(x, keep_prob)
+    '''
+    Traffic Light Classifier classes
+    0 = RED
+    1 = YELLOW
+    2 = GREEN
+    4 = UNKNOWN
+    '''
+    with tf.name_scope("Classifier"):
+        # Dropout [use value of 50% when training]
+        x = tf.nn.dropout(x, keep_prob)
 
-            # Fixed global avg pool/softmax classifier:
-            # [227, 227, 3] -> 1000 classes
-            layer_name = 'conv10'
-            weights, biases = get_weights_biases(preloaded, layer_name)
-            x = _conv_layer(net, layer_name + '_conv', x, weights, biases)
-            x = _act_layer(net, layer_name + '_actv', x)
+        # Fixed global avg pool/softmax classifier:
+        # [227, 227, 3] -> 1000 classes
+        layer_name = 'conv10'
+        #weights, biases = get_weights_biases(preloaded, layer_name)
+        weights = tf.Variable(tf.truncated_normal(shape=(1, 1, 512, 1000), mean = mu, stddev = sigma))
+        biases  = tf.Variable(tf.zeros(1000))
+        x = _conv_layer(net, layer_name + '_conv', x, weights, biases)
+        x = _act_layer(net, layer_name + '_actv', x)
 
-            # Global Average Pooling
-            x = _pool_layer(net, 'classifier_pool', x, 'avg', size=(13, 13), stride=(1, 1), padding='VALID')
+        # Global Average Pooling
+        x = _pool_layer(net, 'classifier_pool', x, 'avg', size=(13, 13), stride=(1, 1), padding='VALID')
 
-            # Flatten. Input = 1x1x1x1000. Output = 1x1000.
-            fc0 = flatten(x)
+        # Flatten. Input = 1x1x1x1000. Output = 1x1000.
+        fc0 = flatten(x)
 
-            # Fully Connected. Input = 1000. Output = 100.
-            fc1_W = tf.Variable(tf.truncated_normal(shape=(1000, 100), mean = 0, stddev = 0.1))
-            fc1_b = tf.Variable(tf.zeros(100))
-            fc1   = tf.matmul(fc0, fc1_W) + fc1_b
-            # Activation.
-            fc1 = tf.nn.relu(fc1)
+        # Fully Connected. Input = 1000. Output = 100.
+        fc1_W = tf.Variable(tf.truncated_normal(shape=(1000, 100), mean = 0, stddev = 0.1))
+        fc1_b = tf.Variable(tf.zeros(100))
+        fc1   = tf.matmul(fc0, fc1_W) + fc1_b
+        # Activation.
+        fc1 = tf.nn.relu(fc1)
 
-            # Fully Connected. Input = 100. Output = 20.
-            fc2_W = tf.Variable(tf.truncated_normal(shape=(100, 20), mean = 0, stddev = 0.1))
-            fc2_b = tf.Variable(tf.zeros(20))
-            fc2   = tf.matmul(fc1, fc2_W) + fc2_b
-            # Activation.
-            fc2 = tf.nn.relu(fc2)
+        # Fully Connected. Input = 100. Output = 20.
+        fc2_W = tf.Variable(tf.truncated_normal(shape=(100, 20), mean = 0, stddev = 0.1))
+        fc2_b = tf.Variable(tf.zeros(20))
+        fc2   = tf.matmul(fc1, fc2_W) + fc2_b
+        # Activation.
+        fc2 = tf.nn.relu(fc2)
 
-            # Fully Connected. Input = 20. Output = 4.
-            fc3_W = tf.Variable(tf.truncated_normal(shape=(20, 4), mean = 0, stddev = 0.1))
-            fc3_b = tf.Variable(tf.zeros(4))
-            fc3   = tf.matmul(fc2, fc3_W) + fc3_b
-            # Activation.
-            logits = tf.nn.relu(fc3)
+        # Fully Connected. Input = 20. Output = 4.
+        fc3_W = tf.Variable(tf.truncated_normal(shape=(20, 4), mean = 0, stddev = 0.1))
+        fc3_b = tf.Variable(tf.zeros(4))
+        fc3   = tf.matmul(fc2, fc3_W) + fc3_b
+        # Activation.
+        logits = tf.nn.relu(fc3)
 
-            net['classifier_actv'] = logits
+        net['classifier_actv'] = logits
 
     print("Network instance created: %fs" % (time.time() - cr_time))
 
@@ -187,7 +178,7 @@ def net_preloaded(preloaded, input_image, pooling, needs_classifier=False, keep_
 
 def _conv_layer(net, name, input, weights, bias, padding='SAME', stride=(1, 1)):
     with tf.name_scope(name):
-        conv = tf.nn.conv2d(input, tf.constant(weights), strides=(1, stride[0], stride[1], 1),
+        conv = tf.nn.conv2d(input, weights, strides=(1, stride[0], stride[1], 1),
                 padding=padding)
         x = tf.nn.bias_add(conv, bias)
         net[name] = x
@@ -210,23 +201,15 @@ def _pool_layer(net, name, input, pooling, size=(2, 2), stride=(3, 3), padding='
         net[name] = x
         return x
 
-def build_parser():
-    ps = ArgumentParser()
-    ps.add_argument('--in', dest='input', help='input file', metavar='INPUT', required=True)
-    return ps
-
 def main():
     print
-
-    parser = build_parser()
-    options = parser.parse_args()
 
     # Loading network
     data, sqz_mean = load_net('./SqueezeNet/sqz_full.mat')
 
     # Hyperparameters
+    epochs = 3
     lr = 1e-4
-    epochs = 1
     kp = 0.5
 
     # Load training data generator
@@ -240,20 +223,20 @@ def main():
 
     # Placeholders
     images        = tf.placeholder(dtype=tf.float32, shape=(None, helper.HEIGHT, helper.WIDTH, 3), name="input_images")
-    labels        = tf.placeholder(dtype=tf.int32, shape=helper.batch_size, name="labels")
+    labels        = tf.placeholder(dtype=tf.int32, shape=None, name="labels")
     keep_prob     = tf.placeholder(dtype=tf.float32, name="keep_prob")
     learning_rate = tf.placeholder(dtype=tf.float32, name="lrate")
 
     # SqueezeNet model
-    model, logits = net_preloaded(data, images, 'max', True, keep_prob)
+    model, logits = net_preloaded(data, images, 'max', keep_prob)
 
+    # Loss and Training operations
     with tf.name_scope("Retraining"):
-        # Loss and Training operations
         cross_entropy_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=labels, logits=logits))
         training_operation = tf.train.AdamOptimizer(learning_rate = learning_rate).minimize(cross_entropy_loss)
 
+    # Accuracy operation
     with tf.name_scope("Accuracy"):
-        # Accuracy operation
         correct_prediction = tf.equal(tf.argmax(logits, 1), tf.cast(labels, tf.int64))
         accuracy_operation = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
         tf.summary.scalar("accuracy", accuracy_operation)
@@ -275,19 +258,6 @@ def main():
     # Save variables
     saver = tf.train.Saver()
 
-    # Loading image
-    image = helper.get_image(options.input)
-
-    '''
-    Load Traffic Light Classifier classes
-    0 = RED
-    1 = YELLOW
-    2 = GREEN
-    4 = UNKNOWN
-    '''
-    classes = [0, 1, 2, 4]
-    num_classes = len(classes)
-
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
     config.gpu_options.allocator_type = 'BFC'
@@ -299,7 +269,6 @@ def main():
 
         # Initialize variables
         sess.run(tf.global_variables_initializer())
-        #print("graph: ",sess.graph.get_operations())
 
         summ = tf.summary.merge_all()
         # Tensorflow visualization
@@ -316,39 +285,15 @@ def main():
                                               keep_prob: kp,
                                               learning_rate: lr}
                                   )
-                print('Epoch {}: loss = {}'.format(epoch+1, loss))
+            print('Epoch {}: loss = {}'.format(epoch+1, loss))
 
-            # Test accuracy
-            test_accuracy = evaluate(X_test, y_test, helper.batch_size, sess)
-
-            print("Test Accuracy = {:.2f}%".format(test_accuracy*100))
+        # Test accuracy
+        test_accuracy = evaluate(X_test, y_test, helper.batch_size, sess)
+        print("Test Accuracy = {:.2f}%".format(test_accuracy*100))
 
         # Save the variables to disk.
         saver.save(sess, "model/model")
         print("Model saved.")
-
-        '''
-        # serialize model to YAML
-        print('Saving model as model.yaml...')
-        with open("model.yaml", "w") as outfile:
-            yaml.dump(model, outfile, default_flow_style=False)
-        # serialize weights to HDF5
-        hf = h5py.File('model.h5', 'w')
-        hf.create_dataset('model', data=)
-        print('Saving weights as model.h5...')
-        model.save_weights("model.h5")
-        print("Saved model and weights to disk")
-		'''
-
-        '''
-        # Classifying
-#        sqznet_results = model['classifier_actv'].eval(feed_dict={image: [preprocess(image, sqz_mean)], keep_prob: 1.})[0]
-
-        # Outputting result
-#        sqz_class = np.argmax(sqznet_results)
-
-#        print("\nclass: [%d] '%s' with %5.2f%% confidence" % (sqz_class, classes[sqz_class], sqznet_results[sqz_class] * 100))
-         '''
 
 if __name__ == '__main__':
     main()
