@@ -69,7 +69,7 @@ def gen_batch_function_LARA(data_path):
     test_indices  = indices[int(l*RATIO)+1:l]
 
     def get_batches_fn():
-	"""
+        """
         Create batches of training data
         :param batch_size: Batch Size
         :return: Batches of training data
