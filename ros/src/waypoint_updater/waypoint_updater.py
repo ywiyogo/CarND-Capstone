@@ -44,7 +44,7 @@ def constant_v_waypoints(waypoints, velocity, incremental=True):
 def waypoints_under_lights(waypoints, lights, incremental=True):
     look_ahead = 50
     road_width = 30
-    length_zero_velocity = 8
+    length_zero_velocity = 20
 
     final_waypoints = []
 

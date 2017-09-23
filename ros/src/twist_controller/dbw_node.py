@@ -35,6 +35,8 @@ class DBWNode(object):
         controller_rate = rospy.get_param('~controller_rate', 10.)
         tau_acceleration = rospy.get_param('~tau_acceleration', 0.5)
 
+        self.feed_forward_gain = 0.15
+
         self.controller_rate = controller_rate
 
         # Subscriber:
@@ -132,7 +134,7 @@ class DBWNode(object):
                                                                 current_linear_velocity=self.current_linear_velocity,
                                                                 current_linear_acceleration=self.current_linear_acceleration)
 
-                steer = steer_twist + steer_yaw
+                steer = steer_twist + steer_yaw * self.feed_forward_gain
 
                 rospy.logwarn('cte %0.2f, ang_vel %0.2f, steer(twist/yaw) %0.2f %0.2f', \
                               cross_track_error, self.target_angular_velocity, steer_twist, steer_yaw)
