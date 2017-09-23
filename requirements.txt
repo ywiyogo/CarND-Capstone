@@ -16,3 +16,4 @@ rospy_message_converter
 backports.functools_lru_cache
 numba
 numpy-quaternion
+pprofile
