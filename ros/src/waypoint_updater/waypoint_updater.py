@@ -141,10 +141,7 @@ class WaypointUpdater(object):
 
     def __init__(self):
         rospy.init_node('waypoint_updater')
-        # queue_size: after receiving this number of messages, old messages will be deleted
-        # queue_size: all py-files seem to have queue_size=1, so I am using 1 here as well
-        # exception: the cpp-files in waypoint_follower have queue_size=10
-        # todo: test if cpu has less issues with different queue_size and loop-frequency
+
         self.waypoints = None
         self.lights = []
 
@@ -162,7 +159,7 @@ class WaypointUpdater(object):
 
     def pose_cb(self, pose):
 
-        velocity = 20
+        velocity = 10
         if self.waypoints is not None:
             closest_wp_index = get_closest_index_behind(self.waypoints, pose)
             waypoints_2laps = self.waypoints + self.waypoints
