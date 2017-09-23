@@ -27,7 +27,6 @@ def get_cross_track_error_from_frenet(waypoints, pose):
     sign = np.sign(np.cross([x_x, x_y, 0], [n_x, n_y, 0])[-1])
 
     if (sign < 0):
-        rospy.logwarn('Changed sign in cte calculation')
         frenet_d *= -1;
 
     return frenet_d
