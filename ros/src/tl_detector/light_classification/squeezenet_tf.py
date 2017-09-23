@@ -213,7 +213,7 @@ def main():
     kp = 0.5
 
     # Load training data generator
-    data_dir_LARA = 'data/LARA_dataset/'
+    data_dir_LARA = os.path.join(os.getcwd(),"data")
     get_batches_fn, X_test, y_test = helper.gen_batch_function_LARA(data_dir_LARA)
 
     # Test generator image and label
@@ -278,7 +278,8 @@ def main():
         for epoch in range(epochs):
             gen = get_batches_fn()
             for X_train, y_train in gen:
-
+                # XTrain shape: (128, 227, 227, 3)
+                # y_train shape: (128,)
                 _, loss = sess.run([training_operation, cross_entropy_loss],
                                    feed_dict={images: X_train,
                                               labels: y_train,

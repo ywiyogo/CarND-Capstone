@@ -6,7 +6,7 @@ import cv2
 import math
 import random
 from glob import glob
-
+import re
 
 # Image dimensions taken from squeezenet
 WIDTH  = 227
@@ -53,12 +53,13 @@ def gen_batch_function_LARA(data_path):
 
     """
     # Paths to relative files
-    image_paths = glob(os.path.join(data_path, 'Lara3D_UrbanSeq1_JPG/*.jpg'))
-    labels_path = os.path.join(data_path, 'LARA_labels.txt')
-
+    #image_paths = glob(os.path.join(data_path, 'Lara3D_UrbanSeq1_JPG/*.jpg'))
+    #labels_path = os.path.join(data_path, 'LARA_labels.txt')
+    image_paths = glob(os.path.join(data_path, 'all_dataset')+"/*")
+    labels_path = os.path.join(data_path, 'all_label.txt')
     # Read in label information
-    label_no    = np.loadtxt(labels_path, dtype=int, delimiter=' ', skiprows=1, usecols=(2,))
-    label_class = np.loadtxt(labels_path, dtype=str, delimiter=' ', skiprows=1, usecols=(10,))
+    label_no    = np.loadtxt(labels_path, dtype=int, delimiter=' ', skiprows=1, usecols=(1,))
+    label_class = np.loadtxt(labels_path, dtype=str, delimiter=' ', skiprows=1, usecols=(2,))
 
     # Split labels into train and test
     l = len(label_no)
@@ -83,13 +84,12 @@ def gen_batch_function_LARA(data_path):
 
             for index in train_indices[batch_i:batch_i+batch_size]:
                 label = (label_class[index])
-                labels.append(get_class(label))
-
+                labels.append(label)
                 for image_file in image_paths:
-                    if label_no[index] == int(os.path.basename(image_file)[6:12]):
+                    pattern=".*_0*"+str(label_no[index])+"\."
+                    if re.match(pattern, image_file):
                         images.append(get_image(image_file))
                         break
-
             # To visualise gen data
 #            print(labels[0])
 #            cv2.imshow("Image window", images[0])
@@ -105,10 +105,11 @@ def gen_batch_function_LARA(data_path):
 
     for index in test_indices:
         label = (label_class[index])
-        y_test.append(get_class(label))
+        y_test.append(label)
 
         for image_file in image_paths:
-            if label_no[index] == int(os.path.basename(image_file)[6:12]):
+            pattern=".*_0*"+str(label_no[index])+"\."
+            if re.match(pattern, image_file):
                 X_test.append(get_image(image_file))
                 break
     return get_batches_fn, np.array(X_test), np.array(y_test)
