@@ -30,9 +30,9 @@ class DBWNode(object):
         steer_ratio = rospy.get_param('~steer_ratio', 14.8)
         max_lat_accel = rospy.get_param('~max_lat_accel', 3.)
         max_steer_angle = rospy.get_param('~max_steer_angle', 8.)
-        min_speed = 0  # TODO: read from parameter server
-        controller_rate = 10  # 30 TODO: read from parameter server, 30 is defined in cpp-file as loop-frequency # 50Hz
-        tau_acceleration = 0.5
+        min_lon_speed = rospy.get_param('~min_lon_speed', 0.)
+        controller_rate = rospy.get_param('~controller_rate', 10.)
+        tau_acceleration = rospy.get_param('~tau_acceleration', 0.5)
 
         self.controller_rate = controller_rate
 
@@ -64,7 +64,7 @@ class DBWNode(object):
 
         self.yaw_controller = YawController(wheel_base,
                                             steer_ratio,
-                                            min_speed,
+                                            min_lon_speed,
                                             max_lat_accel,
                                             max_steer_angle)
 
@@ -119,21 +119,20 @@ class DBWNode(object):
 
                 # Calculate errors
                 cross_track_error = get_cross_track_error_from_frenet(self.final_waypoints, self.current_pose)
-                rospy.loginfo("cross_track_error is {}".format(cross_track_error))
                 steer_twist = self.twist_controller.control(cross_track_error)
 
-                steer_yaw = self.yaw_controller.get_steering(linear_velocity=self.target_linear_velocity,
+                steer_yaw = self.yaw_controller.get_steering(linear_velocity=10,
                                                              angular_velocity=self.target_angular_velocity,
                                                              current_velocity=self.current_linear_velocity)
 
-                throttle, brake = self.speed_controller.control(target_linear_velocity=self.target_linear_velocity,
+                throttle, brake = self.speed_controller.control(target_linear_velocity=10,
                                                                 current_linear_velocity=self.current_linear_velocity,
                                                                 current_linear_acceleration=self.current_linear_acceleration)
 
                 steer = steer_twist + steer_yaw
-                #steer = steer_twist
-                rospy.loginfo('steer_twist %s', steer_twist)
-                rospy.loginfo('steer_yaw %s', steer_yaw)
+
+                rospy.logwarn('cte %0.2f, ang_vel %0.2f, steer(twist/yaw) %0.2f %0.2f', \
+                              cross_track_error, self.target_angular_velocity, steer_twist, steer_yaw)
 
             else:
                 rospy.logwarn('[dbw_node] No more final_waypoints')
@@ -142,8 +141,7 @@ class DBWNode(object):
                 steer = 0
 
             if self.dbw_enabled:
-                # self.publish(throttle, brake, steer)
-                self.publish(throttle, 0, steer)
+                self.publish(throttle, brake, steer)
 
             rate.sleep() # wiki.ros.org/rospy/Overview/Time#Sleeping_and_Rates --> wait until next rate
 
