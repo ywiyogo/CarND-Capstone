@@ -121,11 +121,11 @@ class DBWNode(object):
                 cross_track_error = get_cross_track_error_from_frenet(self.final_waypoints, self.current_pose)
                 steer_twist = self.twist_controller.control(cross_track_error)
 
-                steer_yaw = self.yaw_controller.get_steering(linear_velocity=10,
+                steer_yaw = self.yaw_controller.get_steering(linear_velocity=self.target_linear_velocity,
                                                              angular_velocity=self.target_angular_velocity,
                                                              current_velocity=self.current_linear_velocity)
 
-                throttle, brake = self.speed_controller.control(target_linear_velocity=10,
+                throttle, brake = self.speed_controller.control(target_linear_velocity=self.final_waypoints[1].twist.twist.linear.x,
                                                                 current_linear_velocity=self.current_linear_velocity,
                                                                 current_linear_acceleration=self.current_linear_acceleration)
 
@@ -133,6 +133,8 @@ class DBWNode(object):
 
                 rospy.logwarn('cte %0.2f, ang_vel %0.2f, steer(twist/yaw) %0.2f %0.2f', \
                               cross_track_error, self.target_angular_velocity, steer_twist, steer_yaw)
+
+                rospy.logwarn('Target WP Velocity %0.2f, throttle %0.2f, brake %0.2f', self.final_waypoints[1].twist.twist.linear.x, throttle, brake)
 
             else:
                 rospy.logwarn('[dbw_node] No more final_waypoints')
