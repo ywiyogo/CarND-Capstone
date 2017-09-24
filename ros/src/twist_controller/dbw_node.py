@@ -35,7 +35,7 @@ class DBWNode(object):
         controller_rate = rospy.get_param('~controller_rate', 10.)
         tau_acceleration = rospy.get_param('~tau_acceleration', 0.5)
 
-        self.feed_forward_gain = 0.15
+        self.feed_forward_gain = 1
 
         self.controller_rate = controller_rate
 
