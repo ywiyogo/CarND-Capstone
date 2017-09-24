@@ -41,9 +41,6 @@ class TLClassifier(object):
 
         mean_pixel = np.array([104.006, 116.669, 122.679], dtype=np.float32)
         #preproc_img = helper.preprocess(resized_img, mean_pixel)
-        print('--------------- Getting classification --------------')
-
-
         # Placeholders
         relu_op = self.graph.get_tensor_by_name('Classifier/Relu_2:0')
 
@@ -56,7 +53,7 @@ class TLClassifier(object):
         softmax = helper.calc_softmax(predictions)
         max_index = np.argmax(softmax)
         print("Softmax: ", softmax)
-        print('--------------- Classification complete -------------')
+        print('--------------- Classification completed -------------')
         if max_index == 0:
             return TrafficLight.RED
         elif max_index == 1:

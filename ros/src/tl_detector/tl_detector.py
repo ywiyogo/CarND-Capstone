@@ -115,7 +115,7 @@ class TLDetector(object):
         elif self.state_count >= STATE_COUNT_THRESHOLD:
             self.last_state = self.state
             light_wp = light_wp if state == TrafficLight.RED else -1
-            print("Light: ", light_wp)
+            #print("Light waypoint index: ", light_wp)
             self.last_wp = light_wp
             self.upcoming_red_light_pub.publish(Int32(light_wp))
         else:
@@ -261,16 +261,17 @@ class TLDetector(object):
 
                     if self.detected_tlight != self.cust_tlights[ind]:
                         self.detected_tlight = self.cust_tlights[ind]
-                        print("[TLD] TL %d found, A front distance to current pose: %f" % (ind, dist))
+                        print("[TLD] TL %d found, A front distance to current pose: %f, waypoint index: %d" % (ind, dist, light))
             else:
                 self.detected_tlight = None
+                self.state = TrafficLight.UNKNOWN
+                self.state_count = 0
+
 
         if light:
             state = self.get_light_state(light)
-            print("TL state: ",state)
             return light, state
         else:
-            self.waypoints = None
             return -1, TrafficLight.UNKNOWN
 
 
