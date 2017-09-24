@@ -1,6 +1,7 @@
 # Copyright (c) 2017 Andrey Voroshilov (modified)
 
 #!/usr/bin/python
+from __future__ import division
 import os
 import tensorflow as tf
 import numpy as np
@@ -138,8 +139,8 @@ def net_preloaded(preloaded, input_image, pooling, keep_prob=None):
         # [227, 227, 3] -> 1000 classes
         layer_name = 'conv10'
         #weights, biases = get_weights_biases(preloaded, layer_name)
-        weights = tf.Variable(tf.truncated_normal(shape=(1, 1, 512, 1000), mean = mu, stddev = sigma))
-        biases  = tf.Variable(tf.zeros(1000))
+        weights = tf.Variable(tf.truncated_normal(shape=(1, 1, 512, 512), mean = mu, stddev = sigma))
+        biases  = tf.Variable(tf.zeros(512))
         x = _conv_layer(net, layer_name + '_conv', x, weights, biases)
         x = _act_layer(net, layer_name + '_actv', x)
 
@@ -150,7 +151,7 @@ def net_preloaded(preloaded, input_image, pooling, keep_prob=None):
         fc0 = flatten(x)
 
         # Fully Connected. Input = 1000. Output = 100.
-        fc1_W = tf.Variable(tf.truncated_normal(shape=(1000, 100), mean = 0, stddev = 0.1))
+        fc1_W = tf.Variable(tf.truncated_normal(shape=(512, 100), mean = 0, stddev = 0.1))
         fc1_b = tf.Variable(tf.zeros(100))
         fc1   = tf.matmul(fc0, fc1_W) + fc1_b
         # Activation.
@@ -208,7 +209,7 @@ def main():
     data, sqz_mean = load_net('./SqueezeNet/sqz_full.mat')
 
     # Hyperparameters
-    epochs = 3
+    epochs = 10
     lr = 1e-4
     kp = 0.5
 
