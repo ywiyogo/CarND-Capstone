@@ -92,7 +92,7 @@ class TLDetector(object):
 
     def image_cb(self, msg):
         """Identifies red lights in the incoming camera image and publishes the index
-            of the waypoint closest to the red light to /traffic_waypoint
+            of the waypoint closest to the red light's stop line to /traffic_waypoint
 
         Args:
             msg (Image): image from car-mounted camera
@@ -240,16 +240,18 @@ class TLDetector(object):
         """Finds closest visible traffic light, if one exists, and determines its
             location and color
         Returns:
-            int: index of waypoint closest to the upcoming traffic light (-1 if none exists)
+            int: index of waypoint closest to the upcoming stop line for a traffic light (-1 if none exists)
             int: ID of traffic light color (specified in styx_msgs/TrafficLight)
         """
 
         light = None
-        light_positions = self.config['light_positions']
-        # NOTE, YW: the above light_positions is based on the sim_traffic_light_config.xml
+
+        # List of positions that correspond to the line to stop in front of for a given intersection
+        stop_line_positions = self.config['stop_line_positions']
+        # NOTE, YW: the above stop_line_positions is based on the sim_traffic_light_config.xml
         # but the entries are not the same as from the traffic_cb function !!
         # Currently I concern only the traffic_cb
-        #print("light pos: ", light_positions)
+        #print("light pos: ", stop_line_positions)
         if(self.pose):
             #YW: find the closest visible traffic light (if one exists)
             cust_pose = [self.pose.pose.position.x, self.pose.pose.position.y]
