@@ -51,6 +51,11 @@ class TLClassifier(object):
 
         #print("Predictions: ", predictions)
         predictions = np.squeeze(predictions)   #squeeze array to 1 dim array
+
+        #Check if all prediction the same or not activated
+        if all(val==predictions[0] for val in predictions):
+            return TrafficLight.UNKNOWN
+
         softmax = helper.calc_softmax(predictions)
         max_index = np.argmax(softmax)
         print("Softmax: ", softmax)

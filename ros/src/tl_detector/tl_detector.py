@@ -108,6 +108,9 @@ class TLDetector(object):
         of times till we start using it. Otherwise the previous stable state is
         used.
         '''
+        if self.state == None:
+            self.state = TrafficLight.UNKNOWN
+
         print("TL state: ", state)
         if self.state != state:
             self.state_count = 0
