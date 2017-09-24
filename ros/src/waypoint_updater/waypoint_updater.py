@@ -46,9 +46,9 @@ def waypoints_under_stoppage_points(waypoints, stoppage_point,
     if stoppage_point is None:
         return waypoints
 
-    look_ahead = 50
+    look_ahead = 60 
     road_width = 30
-    length_zero_velocity = 10
+    length_zero_velocity = 30
 
     final_waypoints = []
 
