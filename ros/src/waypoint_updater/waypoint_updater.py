@@ -5,14 +5,15 @@ import rospy
 
 from geometry_msgs.msg import PoseStamped
 from styx_msgs.msg import Lane, Waypoint, TrafficLightArray
+from std_msgs.msg import Int32
 
 import scipy.spatial
 import math
 import numpy as np
+import copy
 
 
 LOOKAHEAD_WPS = 30  # 200 requires too much CPU.
-
 
 def constant_v_waypoints(waypoints, velocity, incremental=True):
     final_waypoints = []
@@ -42,6 +43,8 @@ def constant_v_waypoints(waypoints, velocity, incremental=True):
 
 
 def waypoints_under_lights(waypoints, lights, incremental=True):
+    red = 0
+
     look_ahead = 50
     road_width = 30
     length_zero_velocity = 20
@@ -78,11 +81,11 @@ def waypoints_under_lights(waypoints, lights, incremental=True):
             longitudinal_position = relative_position.dot(longitudinal_road_vector)
             lateral_position = relative_position.dot(lateral_road_vector)
 
-            if (longitudinal_position >= 0 and light.state == 0
+            if (longitudinal_position >= 0 and light.state == red
                     and longitudinal_position <= length_zero_velocity
                     and abs(lateral_position) <= road_width):
                 this_ratio = 0
-            elif (longitudinal_position >= 0 and light.state == 0
+            elif (longitudinal_position >= 0 and light.state == red
                     and longitudinal_position <= look_ahead
                     and abs(lateral_position) <= road_width):
                 this_ratio = ((longitudinal_position - length_zero_velocity)
@@ -113,12 +116,12 @@ def get_kd_tree(waypoints):
         return get_kd_tree.kd_tree, get_kd_tree.waypoint_coordinates
     else:
         return get_kd_tree.kd_tree, get_kd_tree.waypoint_coordinates
+
 get_kd_tree.kd_tree = None
 get_kd_tree.waypoint_coordinates = None
 
 
 def get_closest_index_behind(waypoints, pose, incremental=True):
-
 
     waypoints_kd_tree, waypoint_coordinates = get_kd_tree(waypoints)
 
@@ -135,7 +138,8 @@ def get_closest_index_behind(waypoints, pose, incremental=True):
         return index
     else:
         adjusted_index = index - 1 if incremental else index + 1
-        return index % len(waypoints)
+        return adjusted_index % len(waypoints)
+
 
 class WaypointUpdater(object):
 
@@ -144,11 +148,15 @@ class WaypointUpdater(object):
 
         self.waypoints = None
         self.lights = []
+        self.next_lights = []
 
         self.waypoints_subscriber = rospy.Subscriber('/base_waypoints', Lane,
                                                      self.waypoints_cb, queue_size=1)
         rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb, queue_size=1)
-        rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_cb, queue_size=1)
+        rospy.Subscriber('/traffic_waypoint', Int32, self.next_light_cb, queue_size=1)
+        self.traffic_lights_subscriber = rospy.Subscriber('/vehicle/traffic_lights',
+                                                          TrafficLightArray,
+                                                          self.traffic_cb, queue_size=1)
 
         self.final_waypoints_pub = rospy.Publisher('/final_waypoints', Lane, queue_size=1)
         rospy.spin()
@@ -156,6 +164,19 @@ class WaypointUpdater(object):
     def waypoints_cb(self, lane):
         self.waypoints = lane.waypoints
         self.waypoints_subscriber.unregister()
+
+    def next_light_cb(self, next_light_index_message):
+        next_light_index = next_light_index_message.data
+        if (next_light_index == -1):
+            self.next_lights = []
+        else:
+            next_light = copy.deepcopy(self.lights[next_light_index])
+            next_light.state = 0
+            if (self.lights[next_light_index] != next_light.state):
+                rospy.warn("Machine learning red light result at "
+                           "{0} differs from the ground truth".format(next_light_index))
+            self.next_lights = [next_light]
+
 
     def pose_cb(self, pose):
 
@@ -167,13 +188,14 @@ class WaypointUpdater(object):
             velocity_waypoints = constant_v_waypoints(waypoints_2laps[closest_wp_index:
                                                                       closest_wp_index+LOOKAHEAD_WPS],
                                                       velocity)
-            lane.waypoints = waypoints_under_lights(velocity_waypoints, self.lights)
+            lane.waypoints = waypoints_under_lights(velocity_waypoints, self.next_lights)
 
             self.final_waypoints_pub.publish(lane)
 
 
     def traffic_cb(self, traffic_lights):
         self.lights = traffic_lights.lights
+        self.traffic_lights_subscriber.unregister()
 
 
     '''
