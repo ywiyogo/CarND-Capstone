@@ -58,8 +58,6 @@ class TLDetector(object):
         self.state_count = 0
 
         if GET_TRAINING_DATA:
-            self.approach = False
-            self.last_dist = 0
             self.counter = 1
             if os.path.exists(SIM_DATA_PATH+"label.txt"):
                 os.remove(SIM_DATA_PATH+"label.txt")
