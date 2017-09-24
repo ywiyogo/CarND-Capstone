@@ -220,9 +220,6 @@ class WaypointUpdater(object):
                                                      self.waypoints_cb, queue_size=1)
         rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb, queue_size=1)
         rospy.Subscriber('/traffic_waypoint', Int32, self.next_light_cb, queue_size=1)
-        self.traffic_lights_subscriber = rospy.Subscriber('/vehicle/traffic_lights',
-                                                          TrafficLightArray,
-                                                          self.traffic_cb, queue_size=1)
 
         self.final_waypoints_pub = rospy.Publisher('/final_waypoints', Lane, queue_size=1)
         rospy.spin()
@@ -255,30 +252,44 @@ class WaypointUpdater(object):
             self.final_waypoints_pub.publish(lane)
 
 
+class WaypointUpdaterGroundTruth(object):
+
+    def __init__(self):
+        rospy.init_node('waypoint_updater')
+
+        self.waypoints = None
+        self.lights = []
+
+        self.waypoints_subscriber = rospy.Subscriber('/base_waypoints', Lane,
+                                                     self.waypoints_cb, queue_size=1)
+        rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb, queue_size=1)
+        rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_cb, queue_size=1)
+
+        self.final_waypoints_pub = rospy.Publisher('/final_waypoints', Lane, queue_size=1)
+        rospy.spin()
+
+    def waypoints_cb(self, lane):
+        self.waypoints = lane.waypoints
+        self.waypoints_2laps = self.waypoints + self.waypoints
+        self.waypoints_subscriber.unregister()
+
+    def pose_cb(self, pose):
+
+        velocity = 10
+        if self.waypoints is not None:
+            closest_wp_index = get_closest_index_behind(self.waypoints, pose)
+            lane = Lane()
+            next_points = self.waypoints_2laps[closest_wp_index:
+                                               closest_wp_index+LOOKAHEAD_WPS]
+            velocity_waypoints = constant_v_waypoints(next_points, velocity)
+            lane.waypoints = waypoints_under_lights(velocity_waypoints, self.lights)
+
+            self.final_waypoints_pub.publish(lane)
+
+
     def traffic_cb(self, traffic_lights):
         self.lights = traffic_lights.lights
-        self.traffic_lights_subscriber.unregister()
 
-
-    '''
-    def obstacle_cb(self, msg):
-        # TODO: Callback for /obstacle_waypoint message. We will implement it later
-        pass
-
-    def get_waypoint_velocity(self, waypoint):
-        return waypoint.twist.twist.linear.x
-
-    def set_waypoint_velocity(self, waypoints, waypoint, velocity):
-        waypoints[waypoint].twist.twist.linear.x = velocity
-
-    def distance(self, waypoints, wp1, wp2):
-        dist = 0
-        dl = lambda a, b: math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2  + (a.z-b.z)**2)
-        for i in range(wp1, wp2+1):
-            dist += dl(waypoints[wp1].pose.pose.position, waypoints[i].pose.pose.position)
-            wp1 = i
-        return dist
-    '''
 
 if __name__ == '__main__':
     try:
