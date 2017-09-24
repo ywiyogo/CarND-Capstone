@@ -108,12 +108,14 @@ class TLDetector(object):
         of times till we start using it. Otherwise the previous stable state is
         used.
         '''
+
         if self.state != state:
             self.state_count = 0
             self.state = state
         elif self.state_count >= STATE_COUNT_THRESHOLD:
             self.last_state = self.state
             light_wp = light_wp if state == TrafficLight.RED else -1
+            print("Light: ", light_wp)
             self.last_wp = light_wp
             self.upcoming_red_light_pub.publish(Int32(light_wp))
         else:
@@ -219,7 +221,6 @@ class TLDetector(object):
         # Commented out for testing...
         #x, y = self.project_to_image_plane(light.pose.pose.position)
 
-
         #TODO use light location to zoom in on traffic light in image
 
         #Get classification
@@ -247,8 +248,6 @@ class TLDetector(object):
         # Currently I concern only the traffic_cb
         #print("light pos: ", light_positions)
         if(self.pose):
-            car_position = self.get_closest_waypoint(self.pose.pose)
-
             #YW: find the closest visible traffic light (if one exists)
             cust_pose = [self.pose.pose.position.x, self.pose.pose.position.y]
             dist,ind = spatial.KDTree(self.cust_tlights).query(cust_pose)
@@ -257,7 +256,9 @@ class TLDetector(object):
             cam_dist_to_tl = 250    # in m
             if(dist < cam_dist_to_tl):
                 if diff_x >0:
-                    light = self.lights[ind]
+                    # get the index of the closest waypoint from the TL pose
+                    light = self.get_closest_waypoint(self.lights[ind].pose.pose)
+
                     if self.detected_tlight != self.cust_tlights[ind]:
                         self.detected_tlight = self.cust_tlights[ind]
                         print("[TLD] TL %d found, A front distance to current pose: %f" % (ind, dist))
