@@ -11,6 +11,7 @@ import tf
 import cv2
 import yaml
 import os
+import numpy as np
 from scipy import spatial
 
 STATE_COUNT_THRESHOLD = 3
@@ -29,6 +30,7 @@ class TLDetector(object):
         self.cust_waypoints = []
         self.cust_tlights = []
         self.detected_tlight = None
+        self.dist = None
 
         sub1 = rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
         sub2 = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
@@ -58,9 +60,14 @@ class TLDetector(object):
         self.state_count = 0
 
         if GET_TRAINING_DATA:
-            self.counter = 1
             if os.path.exists(SIM_DATA_PATH+"label.txt"):
-                os.remove(SIM_DATA_PATH+"label.txt")
+                labels_path = os.path.join(SIM_DATA_PATH, 'label.txt')
+                label_no = np.loadtxt(labels_path, dtype=int, delimiter=' ', skiprows=1, usecols=(0,))
+                self.counter = label_no[-1] + 1
+            else:
+                self.counter = 1
+            #if os.path.exists(SIM_DATA_PATH+"label.txt"):
+                #os.remove(SIM_DATA_PATH+"label.txt")
 
         rospy.spin()
 
@@ -109,14 +116,14 @@ class TLDetector(object):
         if self.state == None:
             self.state = TrafficLight.UNKNOWN
 
-        print("TL state: ", state)
+        #print("TL state: ", state)
         if self.state != state:
             self.state_count = 0
             self.state = state
         elif self.state_count >= STATE_COUNT_THRESHOLD:
             self.last_state = self.state
             light_wp = light_wp if state == TrafficLight.RED else -1
-            print("RED light wp_index: ", light_wp)
+            #print("RED light wp_index: ", light_wp)
             self.last_wp = light_wp
             self.upcoming_red_light_pub.publish(Int32(light_wp))
         else:
@@ -143,11 +150,11 @@ class TLDetector(object):
             # dist, ind = tree.query(cust_pose, k=1)
             dist,ind = spatial.KDTree(self.cust_waypoints).query(cust_pose)
             #print("[TLD]pose: \n", pose)
-            if(ind > len(self.waypoints.waypoints) or ind <0):
-                print("[TDL]Err index out of range %d" % ind)
-            else:
-                print("[TLD] Closest index %d, distance to wp: %f, x: %f, y: %f" % (
-                ind, dist, self.waypoints.waypoints[ind].pose.pose.position.x, self.waypoints.waypoints[ind].pose.pose.position.y))
+            #if(ind > len(self.waypoints.waypoints) or ind <0):
+                #print("[TDL]Err index out of range %d" % ind)
+            #else:
+                #print("[TLD] Closest index %d, distance to wp: %f, x: %f, y: %f" % (
+                #ind, dist, self.waypoints.waypoints[ind].pose.pose.position.x, self.waypoints.waypoints[ind].pose.pose.position.y))
             return ind
         else:
             return -1
@@ -200,7 +207,7 @@ class TLDetector(object):
 
         return (x, y)
 
-    def get_light_state(self, light):
+    def get_light_state(self, light, gt_state):
         """Determines the current color of the traffic light
         Args:
             light (TrafficLight): light to classify
@@ -214,7 +221,7 @@ class TLDetector(object):
         cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
 
         # Display camera image
-        enable_imshow= False    #activate to see the camera image
+        enable_imshow = False    #activate to see the camera image
         if enable_imshow:
             cv2.imshow("Image window", cv_image)
             cv2.waitKey(1)
@@ -230,7 +237,7 @@ class TLDetector(object):
 
         # Get training data set
         if GET_TRAINING_DATA:
-            self.get_training_data(cv_image, state)
+            self.get_training_data(cv_image, gt_state)
 
         return state
 
@@ -253,12 +260,16 @@ class TLDetector(object):
         if(self.pose):
             #YW: find the closest visible traffic light (if one exists)
             cust_pose = [self.pose.pose.position.x, self.pose.pose.position.y]
-            dist,ind = spatial.KDTree(self.cust_tlights).query(cust_pose)
+            dist, ind = spatial.KDTree(self.cust_tlights).query(cust_pose)
+            if (self.dist == None):
+                self.dist = dist
 
-            diff_x = self.cust_tlights[ind][0] - self.pose.pose.position.x
+            #diff_x = self.cust_tlights[ind][0] - self.pose.pose.position.x
+            diff_dist = self.dist - dist
+            self.dist = dist
             cam_dist_to_tl = 250    # in m
             if(dist < cam_dist_to_tl):
-                if diff_x >0:
+                if diff_dist >= 0:
                     # get the index of the closest waypoint from the TL pose
                     light = self.get_closest_waypoint(self.lights[ind].pose.pose)
 
@@ -270,9 +281,9 @@ class TLDetector(object):
                 self.state = TrafficLight.UNKNOWN
                 self.state_count = 0
 
-
+        gt_state = self.lights[ind].state
         if light:
-            state = self.get_light_state(light)
+            state = self.get_light_state(light, gt_state)
             return light, state
         else:
             return -1, TrafficLight.UNKNOWN

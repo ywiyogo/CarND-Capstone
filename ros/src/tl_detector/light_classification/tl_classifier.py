@@ -31,7 +31,7 @@ class TLClassifier(object):
 
         """
         #TODO implement light color prediction
-
+        
         self.saver.restore(self.sess, tf.train.latest_checkpoint(MODEL_DIR))
         #print("Image: ", image.shape)
         resized_img = helper.resize_image(image)
@@ -58,9 +58,9 @@ class TLClassifier(object):
 
         softmax = helper.calc_softmax(predictions)
         max_index = np.argmax(softmax)
-        print("Softmax: ", softmax)
+        #print("Softmax: ", softmax)
 
-        print('--------------- Classification complete -------------')
+        print('--------------- Classification {} -------------'.format(max_index))
         if max_index == 0:
             return TrafficLight.RED
         elif max_index == 1:
