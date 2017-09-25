@@ -17,6 +17,10 @@ from tensorflow.contrib.layers import flatten
 # Get the log directory
 LOG_DIR = os.getcwd()+ "/logs"
 
+sigma = 0.1
+mu = 0
+
+
 def get_dtype_np():
     return np.float32
 
@@ -59,22 +63,25 @@ def get_weights_biases(preloaded, layer_name):
     biases = biases.reshape(-1)
     return (weights, biases)
 
-def fire_cluster(net, x, preloaded, cluster_name):
+def fire_cluster(net, x, preloaded, cluster_name, load_vars=True, weights=None, biases=None):
     # central - squeeze
     layer_name = cluster_name + '/squeeze1x1'
-    weights, biases = get_weights_biases(preloaded, layer_name)
+    if load_vars:
+        weights, biases = get_weights_biases(preloaded, layer_name)
     x = _conv_layer(net, layer_name + '_conv', x, weights, biases, padding='VALID')
     x = _act_layer(net, layer_name + '_actv', x)
 
     # left - expand 1x1
     layer_name = cluster_name + '/expand1x1'
-    weights, biases = get_weights_biases(preloaded, layer_name)
+    if load_vars:
+        weights, biases = get_weights_biases(preloaded, layer_name)
     x_l = _conv_layer(net, layer_name + '_conv', x, weights, biases, padding='VALID')
     x_l = _act_layer(net, layer_name + '_actv', x_l)
 
     # right - expand 3x3
     layer_name = cluster_name + '/expand3x3'
-    weights, biases = get_weights_biases(preloaded, layer_name)
+    if load_vars:
+        weights, biases = get_weights_biases(preloaded, layer_name)
     x_r = _conv_layer(net, layer_name + '_conv', x, weights, biases, padding='SAME')
     x_r = _act_layer(net, layer_name + '_actv', x_r)
 
@@ -90,8 +97,6 @@ def net_preloaded(preloaded, input_image, pooling, keep_prob=None):
 
 #    x = tf.cast(input_image, get_dtype_tf())
     x = input_image
-    sigma = 0.1
-    mu = 0
 
     # Feature extractor
     #####################
@@ -104,23 +109,29 @@ def net_preloaded(preloaded, input_image, pooling, keep_prob=None):
         x = _pool_layer(net, 'pool1_pool', x, pooling, size=(3, 3), stride=(2, 2), padding='VALID')
 
         # fire2 + fire3 clusters
-        x = fire_cluster(net, x, preloaded, cluster_name='fire2')
+        x = fire_cluster(net, x, preloaded, cluster_name='fire2', load_vars=True)
         fire2_bypass = x
-        x = fire_cluster(net, x, preloaded, cluster_name='fire3')
+        x = fire_cluster(net, x, preloaded, cluster_name='fire3', load_vars=True)
         x = _pool_layer(net, 'pool3_pool', x, pooling, size=(3, 3), stride=(2, 2), padding='VALID')
 
         # fire4 + fire5 clusters
-        x = fire_cluster(net, x, preloaded, cluster_name='fire4')
+        x = fire_cluster(net, x, preloaded, cluster_name='fire4', load_vars=True)
         fire4_bypass = x
-        x = fire_cluster(net, x, preloaded, cluster_name='fire5')
+        x = fire_cluster(net, x, preloaded, cluster_name='fire5', load_vars=True)
         x = _pool_layer(net, 'pool5_pool', x, pooling, size=(3, 3), stride=(2, 2), padding='VALID')
 
         # remainder (no pooling)
-        x = fire_cluster(net, x, preloaded, cluster_name='fire6')
+        x = fire_cluster(net, x, preloaded, cluster_name='fire6', load_vars=True)
         fire6_bypass = x
-        x = fire_cluster(net, x, preloaded, cluster_name='fire7')
-        x = fire_cluster(net, x, preloaded, cluster_name='fire8')
-        x = fire_cluster(net, x, preloaded, cluster_name='fire9')
+        weights_fire7 = tf.Variable(tf.truncated_normal(shape=(1, 1, 384, 384), mean = mu, stddev = sigma))
+        biases_fire7  = tf.Variable(tf.zeros(384))
+        x = fire_cluster(net, x, preloaded, cluster_name='fire7', load_vars=True, weights=weights_fire7, biases=biases_fire7)
+        weights_fire8 = tf.Variable(tf.truncated_normal(shape=(1, 1, 384, 512), mean = mu, stddev = sigma))
+        biases_fire8  = tf.Variable(tf.zeros(512))
+        x = fire_cluster(net, x, preloaded, cluster_name='fire8', load_vars=True, weights=weights_fire8, biases=biases_fire8)
+        weights_fire9 = tf.Variable(tf.truncated_normal(shape=(1, 1, 512, 512), mean = mu, stddev = sigma))
+        biases_fire9  = tf.Variable(tf.zeros(512))
+        x = fire_cluster(net, x, preloaded, cluster_name='fire9', load_vars=True, weights=weights_fire9, biases=biases_fire9)
 
     # Classifier
     #####################
