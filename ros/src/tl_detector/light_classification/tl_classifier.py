@@ -61,7 +61,7 @@ class TLClassifier(object):
         max_index = np.argmax(softmax)
         #print("Softmax: ", softmax)
 
-        print('--------------- Classification {} -------------'.format(max_index))
+        #print('--------------- Classification {} -------------'.format(max_index))
         if max_index == 0:
             return TrafficLight.RED
         elif max_index == 1:
