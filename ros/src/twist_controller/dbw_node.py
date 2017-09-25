@@ -33,7 +33,7 @@ class DBWNode(object):
         max_steer_angle = rospy.get_param('~max_steer_angle', 8.)
         min_lon_speed = rospy.get_param('~min_lon_speed', 0.)
         controller_rate = rospy.get_param('~controller_rate', 10.)
-        tau_acceleration = rospy.get_param('~tau_acceleration', 0.5)
+        tau_acceleration = rospy.get_param('~tau_acceleration', 0.3)
 
         self.controller_rate = controller_rate
 
