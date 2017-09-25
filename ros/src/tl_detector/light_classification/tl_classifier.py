@@ -13,12 +13,13 @@ class TLClassifier(object):
         print('--------------- Loading classifier --------------')
         self.graph = tf.get_default_graph()
 
-        with tf.Session() as self.sess:
+        self.sess = tf.Session()
         #http://cv-tricks.com/tensorflow-tutorial/save-restore-tensorflow-models-quick-complete-tutorial/
         # Load the meta graph and restore weights
-            self.saver = tf.train.import_meta_graph(MODEL_DIR + '/model.meta')
+        self.saver = tf.train.import_meta_graph(MODEL_DIR + '/model.meta')
+        self.saver.restore(self.sess, tf.train.latest_checkpoint(MODEL_DIR))
 
-            print('---------------- Loading complete ---------------')
+        print('---------------- Loading complete ---------------')
 
     def get_classification(self, image):
         """Determines the color of the traffic light in the image
@@ -32,7 +33,7 @@ class TLClassifier(object):
         """
         #TODO implement light color prediction
         
-        self.saver.restore(self.sess, tf.train.latest_checkpoint(MODEL_DIR))
+        #self.saver.restore(self.sess, tf.train.latest_checkpoint(MODEL_DIR))
         #print("Image: ", image.shape)
         resized_img = helper.resize_image(image)
         #print("resized shape: ", resized_img.shape)
