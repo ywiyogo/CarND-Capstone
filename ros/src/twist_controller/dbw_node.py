@@ -32,8 +32,8 @@ class DBWNode(object):
         max_lat_accel = rospy.get_param('~max_lat_accel', 3.)
         max_steer_angle = rospy.get_param('~max_steer_angle', 8.)
         min_lon_speed = rospy.get_param('~min_lon_speed', 0.)
-        controller_rate = rospy.get_param('~controller_rate', 10.)
-        tau_acceleration = rospy.get_param('~tau_acceleration', 0.5)
+        controller_rate = rospy.get_param('~controller_rate', 20.)
+        tau_acceleration = rospy.get_param('~tau_acceleration', 0.3)
 
         self.feed_forward_gain = 1
 
@@ -137,8 +137,8 @@ class DBWNode(object):
 
                 steer = steer_twist + steer_yaw * self.feed_forward_gain
 
-                rospy.logwarn('cte %0.2f, ang_vel %0.2f, steer(twist/yaw) %0.2f %0.2f', \
-                              cross_track_error, self.target_angular_velocity, steer_twist, steer_yaw)
+                #rospy.logwarn('cte %0.2f, ang_vel %0.2f, steer(twist/yaw) %0.2f %0.2f', \
+                #              cross_track_error, self.target_angular_velocity, steer_twist, steer_yaw)
                 #rospy.logwarn('Target WP Velocity %0.2f, throttle %0.2f, brake %0.2f', target_linear_velocity, throttle, brake)
 
             else:
