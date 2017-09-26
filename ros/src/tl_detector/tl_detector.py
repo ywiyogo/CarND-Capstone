@@ -281,12 +281,12 @@ class TLDetector(object):
                 self.state = TrafficLight.UNKNOWN
                 self.state_count = 0
 
-        gt_state = self.lights[ind].state
-        if light:
-            state = self.get_light_state(light, gt_state)
-            return light, state
-        else:
-            return -1, TrafficLight.UNKNOWN
+            gt_state = self.lights[ind].state
+            if light:
+                state = self.get_light_state(light, gt_state)
+                return light, state
+
+        return -1, TrafficLight.UNKNOWN
 
 
     def get_training_data(self, image, label):
