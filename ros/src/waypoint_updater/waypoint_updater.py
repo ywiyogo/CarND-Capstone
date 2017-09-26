@@ -46,9 +46,10 @@ def waypoints_under_stoppage_points(waypoints, stoppage_point,
     if stoppage_point is None:
         return waypoints
 
-    look_ahead = 60 
+    look_ahead = 60
     road_width = 30
-    length_zero_velocity = 30
+    start_zero_velocity = 24
+    end_zero_velocity = 28
 
     final_waypoints = []
 
@@ -82,14 +83,15 @@ def waypoints_under_stoppage_points(waypoints, stoppage_point,
         lateral_position = relative_position.dot(lateral_road_vector)
 
         if (longitudinal_position >= 0
-                and longitudinal_position <= length_zero_velocity
+                and longitudinal_position <= end_zero_velocity
+                and longitudinal_position >= start_zero_velocity
                 and abs(lateral_position) <= road_width):
             this_ratio = 0
         elif (longitudinal_position >= 0
                 and longitudinal_position <= look_ahead
                 and abs(lateral_position) <= road_width):
-            this_ratio = ((longitudinal_position - length_zero_velocity)
-                          / (look_ahead - length_zero_velocity))
+            this_ratio = ((longitudinal_position - end_zero_velocity)
+                          / (look_ahead - end_zero_velocity))
         else:
             this_ratio = 1
 
