@@ -32,6 +32,14 @@ class TLDetector(object):
         self.detected_tlight = None
         self.dist = None
 
+        self.bridge = CvBridge()
+        self.light_classifier = TLClassifier()
+        self.listener = tf.TransformListener()
+        self.state = TrafficLight.UNKNOWN
+        self.last_state = TrafficLight.UNKNOWN
+        self.last_wp = -1
+        self.state_count = 0
+
         sub1 = rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
         sub2 = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
 
@@ -47,17 +55,7 @@ class TLDetector(object):
 
         config_string = rospy.get_param("/traffic_light_config")
         self.config = yaml.load(config_string)
-
         self.upcoming_red_light_pub = rospy.Publisher('/traffic_waypoint', Int32, queue_size=1)
-
-        self.bridge = CvBridge()
-        self.light_classifier = TLClassifier()
-        self.listener = tf.TransformListener()
-
-        self.state = TrafficLight.UNKNOWN
-        self.last_state = TrafficLight.UNKNOWN
-        self.last_wp = -1
-        self.state_count = 0
 
         if GET_TRAINING_DATA:
             if os.path.exists(SIM_DATA_PATH+"label.txt"):
@@ -113,7 +111,7 @@ class TLDetector(object):
         of times till we start using it. Otherwise the previous stable state is
         used.
         '''
-        if self.state == None:
+        if not self.state:
             self.state = TrafficLight.UNKNOWN
 
         #print("TL state: ", state)
@@ -232,8 +230,8 @@ class TLDetector(object):
         #TODO use light location to zoom in on traffic light in image
 
         #Get classification
-
         state = self.light_classifier.get_classification(cv_image)
+
 
         # Get training data set
         if GET_TRAINING_DATA:
@@ -257,7 +255,7 @@ class TLDetector(object):
         # but the entries are not the same as from the traffic_cb function !!
         # Currently I concern only the traffic_cb
         #print("light pos: ", stop_line_positions)
-        if(self.pose):
+        if self.pose and len(self.cust_tlights) > 0:
             #YW: find the closest visible traffic light (if one exists)
             cust_pose = [self.pose.pose.position.x, self.pose.pose.position.y]
             dist, ind = spatial.KDTree(self.cust_tlights).query(cust_pose)
