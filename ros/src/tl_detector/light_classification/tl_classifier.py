@@ -1,24 +1,25 @@
 from styx_msgs.msg import TrafficLight
 import tensorflow as tf
 import helper
+import cv2
+import os
+import numpy as np
+# Get the model directory
+MODEL_DIR = os.getcwd()+ "/light_classification/model"
 
-MODEL_DIR = '/home/david/CarND/CarND-P13-Capstone-Team/ros/src/tl_detector/light_classification/model'
-#MODEL_DIR = 'src/tl_detector/light_classification/model'
 
 class TLClassifier(object):
     def __init__(self):
-        #TODO load classifier
-        pass
-
         print('--------------- Loading classifier --------------')
-        print
-        sess = tf.Session()
-        print
-        # Load the meta graph and restore weights
-        saver = tf.train.import_meta_graph(MODEL_DIR + '/model.meta')
-        saver.restore(sess, tf.train.latest_checkpoint(MODEL_DIR))
-        print('---------------- Loading complete ---------------')
+        self.graph = tf.get_default_graph()
 
+        self.sess = tf.Session()
+        #http://cv-tricks.com/tensorflow-tutorial/save-restore-tensorflow-models-quick-complete-tutorial/
+        # Load the meta graph and restore weights
+        self.saver = tf.train.import_meta_graph(MODEL_DIR + '/model.meta')
+        self.saver.restore(self.sess, tf.train.latest_checkpoint(MODEL_DIR))
+
+        print('---------------- Loading complete ---------------')
 
     def get_classification(self, image):
         """Determines the color of the traffic light in the image
@@ -31,27 +32,41 @@ class TLClassifier(object):
 
         """
         #TODO implement light color prediction
-        return TrafficLight.UNKNOWN
+        
+        #self.saver.restore(self.sess, tf.train.latest_checkpoint(MODEL_DIR))
+        #print("Image: ", image.shape)
+        resized_img = helper.resize_image(image)
+        #print("resized shape: ", resized_img.shape)
 
-        print('--------------- Getting classification --------------')
+        expanded_img = np.expand_dims(resized_img, axis=0)
 
-        with tf.Session() as sess:
-            saver.restore(sess, tf.train.latest_checkpoint(MODEL_DIR))
+        mean_pixel = np.array([104.006, 116.669, 122.679], dtype=np.float32)
+        #preproc_img = helper.preprocess(resized_img, mean_pixel)
+        #print('--------------- Getting classification --------------')
+        # Placeholders
+        relu_op = self.graph.get_tensor_by_name('Classifier/Relu_2:0')
 
-            # Get probability in range[0:1] of classification
-            softmax_operation = tf.nn.softmax(logits)
+        predictions = self.sess.run(relu_op, feed_dict=
+                                        {"input_images:0": expanded_img,
+                                         "keep_prob:0": 1.})
 
-            test_probability = sess.run(softmax_operation, feed_dict=
-                                            {images: image,
-                                            keep_prob: 1})
-            test_prediction = np.argmax(test_probability, 1)
-            # top_k predictions
-            topk = sess.run(tf.nn.top_k(tf.constant(test_probability), k=3))
-            print('test_probability', test_probability)
-            print('test_prediction', test_prediction)
-            print('topk', topk)
+        #print("Predictions: ", predictions)
+        predictions = np.squeeze(predictions)   #squeeze array to 1 dim array
 
+        #Check if all prediction the same or not activated
+        if all(val==predictions[0] for val in predictions):
+            return TrafficLight.UNKNOWN
 
+        softmax = helper.calc_softmax(predictions)
+        max_index = np.argmax(softmax)
+        #print("Softmax: ", softmax)
 
-        print('--------------- Classification complete -------------')
-        return TrafficLight.UNKNOWN
+        #print('--------------- Classification {} -------------'.format(max_index))
+        if max_index == 0:
+            return TrafficLight.RED
+        elif max_index == 1:
+            return TrafficLight.YELLOW
+        elif max_index == 2:
+            return TrafficLight.GREEN
+        else:
+            return TrafficLight.UNKNOWN

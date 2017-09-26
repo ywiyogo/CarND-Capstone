@@ -28,6 +28,8 @@ msg/_*.py
 *.dox
 *.wikidoc
 
+# ignore generated tensorflow logs
+logs/
 # eclipse stuff
 .project
 .cproject
