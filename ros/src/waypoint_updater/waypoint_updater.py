@@ -46,9 +46,9 @@ def waypoints_under_stoppage_points(waypoints, stoppage_point,
     if stoppage_point is None:
         return waypoints
 
-    look_ahead = 60
+    look_ahead = 50
     road_width = 30
-    start_zero_velocity = 24
+    start_zero_velocity = 25
     end_zero_velocity = 28
 
     final_waypoints = []
@@ -65,12 +65,13 @@ def waypoints_under_stoppage_points(waypoints, stoppage_point,
     delta_s = np.sqrt(np.square(delta_x) + np.square(delta_y))
 
     last_waypoint = waypoints[0]
+
     for index, waypoint in enumerate(waypoints[1:]):
         direction_x = forward_direction * delta_x[index] / delta_s[index]
         direction_y = forward_direction * delta_y[index] / delta_s[index]
 
         longitudinal_road_vector = np.array([direction_x, direction_y])
-        lateral_road_vector = np.array([-direction_y, direction_y])
+        lateral_road_vector = np.array([-direction_y, direction_x])
 
         ratio = 1
         x_waypoint = last_waypoint.pose.pose.position.x
@@ -82,12 +83,11 @@ def waypoints_under_stoppage_points(waypoints, stoppage_point,
         longitudinal_position = relative_position.dot(longitudinal_road_vector)
         lateral_position = relative_position.dot(lateral_road_vector)
 
-        if (longitudinal_position >= 0
+        if (longitudinal_position >= start_zero_velocity
                 and longitudinal_position <= end_zero_velocity
-                and longitudinal_position >= start_zero_velocity
                 and abs(lateral_position) <= road_width):
             this_ratio = 0
-        elif (longitudinal_position >= 0
+        elif (longitudinal_position >= end_zero_velocity
                 and longitudinal_position <= look_ahead
                 and abs(lateral_position) <= road_width):
             this_ratio = ((longitudinal_position - end_zero_velocity)
