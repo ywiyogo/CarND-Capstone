@@ -20,6 +20,7 @@ except ImportError:
 
 _DIRECTORY = os.path.abspath(os.path.dirname(__file__))
 
+
 def test_find_closest_behind_point():
 
     pose, lane, _ = get_data()
@@ -32,7 +33,7 @@ def test_find_closest_behind_point():
     assert closest_index_behind == closest_index_manual
 
 
-def test_constant_velocity_waypoints():
+def test_constant_v_waypoints():
 
     _, lane, _ = get_data()
 
@@ -49,13 +50,13 @@ def test_constant_velocity_waypoints():
 
     assert len(velocity_waypoints) == length - 1
     for waypoint in velocity_waypoints:
-        vx = waypoint.twist.twist.linear.x
-        vy = waypoint.twist.twist.linear.y
-        v_total = math.sqrt(vx**2 + vy**2)
+        v_x = waypoint.twist.twist.linear.x
+        v_y = waypoint.twist.twist.linear.y
+        v_total = math.sqrt(v_x**2 + v_y**2)
         assert abs(v_total - velocity) < 1e-4
 
 
-def test_influence_traffic_lights():
+def test_traffic_lights():
 
     _, lane, traffic_lights = get_data()
 
@@ -81,8 +82,8 @@ def test_influence_traffic_lights():
     delta_s = math.sqrt(delta_x**2 + delta_y**2)
 
     lights = traffic_lights.lights[0:1]
-    lights[0].pose.pose.position.x = position_x_start + 0.1 * delta_x / delta_s 
-    lights[0].pose.pose.position.y = position_y_start + 0.1 * delta_y / delta_s 
+    lights[0].pose.pose.position.x = position_x_start + 0.1 * delta_x / delta_s
+    lights[0].pose.pose.position.y = position_y_start + 0.1 * delta_y / delta_s
     lights[0].state = 0
 
     final_waypoints = waypoint_updater.waypoints_under_lights(velocity_waypoints,
@@ -114,4 +115,4 @@ def get_data():
     traffic_lights = convert_json_to_ros_message('styx_msgs/TrafficLightArray',
                                                  traffic_lights_json)
 
-    return pose, lane, traffic_lights 
+    return pose, lane, traffic_lights
