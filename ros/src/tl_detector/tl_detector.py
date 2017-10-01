@@ -26,11 +26,21 @@ class TLDetector(object):
         self.waypoints = None
         self.camera_image = None
         self.lights = []
+        self.state = None
+
 
         self.cust_waypoints = []
         self.cust_tlights = []
         self.detected_tlight = None
         self.dist = None
+
+        self.bridge = CvBridge()
+        self.light_classifier = TLClassifier()
+        self.listener = tf.TransformListener()
+        self.state = TrafficLight.UNKNOWN
+        self.last_state = TrafficLight.UNKNOWN
+        self.last_wp = -1
+        self.state_count = 0
 
         sub1 = rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
         sub2 = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
@@ -42,22 +52,8 @@ class TLDetector(object):
         simulator. When testing on the vehicle, the color state will not be available. You'll need to
         rely on the position of the light and the camera image to predict it.
         '''
-        sub3 = rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_cb)
-        sub6 = rospy.Subscriber('/image_color', Image, self.image_cb)
-
         config_string = rospy.get_param("/traffic_light_config")
         self.config = yaml.load(config_string)
-
-        self.upcoming_red_light_pub = rospy.Publisher('/traffic_waypoint', Int32, queue_size=1)
-
-        self.bridge = CvBridge()
-        self.light_classifier = TLClassifier()
-        self.listener = tf.TransformListener()
-
-        self.state = TrafficLight.UNKNOWN
-        self.last_state = TrafficLight.UNKNOWN
-        self.last_wp = -1
-        self.state_count = 0
 
         if GET_TRAINING_DATA:
             if os.path.exists(SIM_DATA_PATH+"label.txt"):
@@ -68,6 +64,10 @@ class TLDetector(object):
                 self.counter = 1
             #if os.path.exists(SIM_DATA_PATH+"label.txt"):
                 #os.remove(SIM_DATA_PATH+"label.txt")
+
+        self.upcoming_red_light_pub = rospy.Publisher('/traffic_waypoint', Int32, queue_size=1)
+        sub3 = rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_cb)
+        sub6 = rospy.Subscriber('/image_color', Image, self.image_cb)
 
         rospy.spin()
 
@@ -113,13 +113,10 @@ class TLDetector(object):
         of times till we start using it. Otherwise the previous stable state is
         used.
         '''
-        if self.state == None:
-            self.state = TrafficLight.UNKNOWN
-
-        #print("TL state: ", state)
         if self.state != state:
             self.state_count = 0
             self.state = state
+            print("TL state: ", state)
         elif self.state_count >= STATE_COUNT_THRESHOLD:
             self.last_state = self.state
             light_wp = light_wp if state == TrafficLight.RED else -1
@@ -232,8 +229,8 @@ class TLDetector(object):
         #TODO use light location to zoom in on traffic light in image
 
         #Get classification
-
         state = self.light_classifier.get_classification(cv_image)
+
 
         # Get training data set
         if GET_TRAINING_DATA:
@@ -257,7 +254,7 @@ class TLDetector(object):
         # but the entries are not the same as from the traffic_cb function !!
         # Currently I concern only the traffic_cb
         #print("light pos: ", stop_line_positions)
-        if(self.pose):
+        if self.pose and len(self.cust_tlights) > 0:
             #YW: find the closest visible traffic light (if one exists)
             cust_pose = [self.pose.pose.position.x, self.pose.pose.position.y]
             dist, ind = spatial.KDTree(self.cust_tlights).query(cust_pose)
@@ -281,12 +278,12 @@ class TLDetector(object):
                 self.state = TrafficLight.UNKNOWN
                 self.state_count = 0
 
-        gt_state = self.lights[ind].state
-        if light:
-            state = self.get_light_state(light, gt_state)
-            return light, state
-        else:
-            return -1, TrafficLight.UNKNOWN
+            gt_state = self.lights[ind].state
+            if light:
+                state = self.get_light_state(light, gt_state)
+                return light, state
+
+        return -1, TrafficLight.UNKNOWN
 
 
     def get_training_data(self, image, label):
