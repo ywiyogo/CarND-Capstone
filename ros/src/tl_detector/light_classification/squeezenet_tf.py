@@ -203,29 +203,34 @@ def net_preloaded(preloaded, input_image, pooling, keep_prob=None):
         # Global Average Pooling
         x = _pool_layer(net, 'classifier_pool', x, 'avg', size=(13, 13), stride=(1, 1), padding='VALID')
 
-        # Flatten. Input = 1x1x1x1000. Output = 1x1000.
+        # Flatten. Input = 1x1x1x512. Output = 1x512.
         fc0 = flatten(x)
 
-        # Fully Connected. Input = 1000. Output = 100.
-        fc1_W = tf.Variable(tf.truncated_normal(shape=(512, 100), mean = 0, stddev = 0.1))
-        fc1_b = tf.Variable(tf.zeros(100))
+        # Fully Connected. Input = 512. Output = 256.
+        fc1_W = tf.Variable(tf.truncated_normal(shape=(512, 256), mean = 0, stddev = 0.1))
+        fc1_b = tf.Variable(tf.zeros(256))
         fc1   = tf.matmul(fc0, fc1_W) + fc1_b
         # Activation.
         fc1 = tf.nn.relu(fc1)
 
-        # Fully Connected. Input = 100. Output = 20.
-        fc2_W = tf.Variable(tf.truncated_normal(shape=(100, 20), mean = 0, stddev = 0.1))
-        fc2_b = tf.Variable(tf.zeros(20))
+        # Fully Connected. Input = 256. Output = 128.
+        fc2_W = tf.Variable(tf.truncated_normal(shape=(256, 128), mean = 0, stddev = 0.1))
+        fc2_b = tf.Variable(tf.zeros(128))
         fc2   = tf.matmul(fc1, fc2_W) + fc2_b
         # Activation.
         fc2 = tf.nn.relu(fc2)
 
-        # Fully Connected. Input = 20. Output = 4.
-        fc3_W = tf.Variable(tf.truncated_normal(shape=(20, 4), mean = 0, stddev = 0.1))
-        fc3_b = tf.Variable(tf.zeros(4))
+        # Fully Connected. Input = 128. Output = 48.
+        fc3_W = tf.Variable(tf.truncated_normal(shape=(128, 48), mean = 0, stddev = 0.1))
+        fc3_b = tf.Variable(tf.zeros(48))
         fc3   = tf.matmul(fc2, fc3_W) + fc3_b
+
+        # Fully Connected. Input = 48. Output = 4.
+        fc4_W = tf.Variable(tf.truncated_normal(shape=(48, 4), mean = 0, stddev = 0.1))
+        fc4_b = tf.Variable(tf.zeros(4))
+        fc4   = tf.matmul(fc3, fc4_W) + fc4_b
         # Activation.
-        logits = tf.nn.relu(fc3)
+        logits = tf.nn.relu(fc4)
 
         net['classifier_actv'] = logits
 
