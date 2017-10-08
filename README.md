@@ -1,5 +1,5 @@
 # Udacity Final Project
-** System integration for a real self-driving car**
+**System integration for a real self-driving car**
 
 ## Introduction
 The goal of this project is to integrate the perception, planning and control software subsystems for a provided Udacity car (called "Carla") so that the car can drive around a given test track using a waypoint navigation. Waypoints are an ordered set of coordinates (in a real world or in a simulator). Since we work remotely from different places and the car is located in the Udacity headquarter, we use a simulator during our development which is provided by Udacity. 
