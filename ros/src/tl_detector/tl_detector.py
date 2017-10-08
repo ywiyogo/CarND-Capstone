@@ -8,7 +8,6 @@ from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 from light_classification.tl_classifier import TLClassifier
 import tf
-#import cv2
 import yaml
 import os
 import numpy as np
@@ -118,7 +117,7 @@ class TLDetector(object):
         if self.state != state:
             self.state_count = 0
             self.state = state
-            print("TL state: ", state)
+            #print("TL state: ", state)
         elif self.state_count >= STATE_COUNT_THRESHOLD:
             self.last_state = self.state
             light_wp = light_wp if state == TrafficLight.RED else -1
@@ -222,8 +221,6 @@ class TLDetector(object):
         # Display camera image
         enable_imshow = False    #activate to see the camera image
         if enable_imshow:
-            #cv2.imshow("Image window", cv_image)
-            #cv2.waitKey(1)
             scipy.misc.imshow(images[0])
 
         # Commented out for testing...
@@ -275,7 +272,6 @@ class TLDetector(object):
 
                     if self.detected_tlight != self.cust_tlights[ind]:
                         self.detected_tlight = self.cust_tlights[ind]
-                        #print("[TLD] TL %d found, A front distance to current pose: %f, waypoint index: %d" % (ind, dist, light))
                         print("[TLD] TL %d found %dm ahead of current pose at waypoint index %d" % (ind, dist, light))
             else:
                 self.detected_tlight = None
