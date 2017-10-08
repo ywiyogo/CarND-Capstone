@@ -16,8 +16,8 @@ class SpeedController(object):
         self.vehicle_mass = vehicle_mass
         self.wheel_radius = wheel_radius
 
-        self.pid_acceleration = pid.PID(kp=0.2, ki=0.05, kd=0.05, mn=self.decel_limit, mx=self.accel_limit)
-        self.pid_throttle = pid.PID(kp=0.3, ki=0.01, kd=0.025, mn=0.0, mx=0.4)
+        self.pid_acceleration = pid.PID(kp=2.5, ki=0.005, kd=0.6,
+                                        mn=-5, mx=4)
 
         self.last_timestamp = rospy.get_time()
 
@@ -43,29 +43,24 @@ class SpeedController(object):
 
         rospy.loginfo('Error speed: %s', velocity_error)
 
-        acceleration_cmd = self.pid_acceleration.step(error=velocity_error, sample_time=duration)
+        acceleration_cmd = self.pid_acceleration.step(error=velocity_error,
+                                                      sample_time=duration)
+        acceleration_adjusted = SpeedController.adjust_acceleration(acceleration_cmd,
+                                                                    current_linear_velocity)
         rospy.loginfo('Acc PID output: %s', acceleration_cmd)
 
-        acceleration_error = acceleration_cmd - current_linear_acceleration
+        braking_gain = self.vehicle_mass * self.wheel_radius / 4
+        throttle_gain = 0.12
 
-        if (acceleration_cmd < self.brake_deadband):
+        if (acceleration_adjusted < 0):
             throttle_out = 0
-            brake_out = -acceleration_cmd * self.vehicle_mass * self.wheel_radius / 4
+            brake_out = - acceleration_adjusted * braking_gain
             self.pid_acceleration.reset()
             rospy.logdebug('[speed_controller] Really braking')
-        elif (acceleration_cmd < 0):
-            throttle_out = 0
-            brake_out = 0
-            self.pid_acceleration.reset()
-            rospy.logdebug('[speed_controller] Using brake deadband')
         else:
-            throttle_out = self.pid_throttle.step(error=acceleration_error, sample_time=sample_time)
+            throttle_out = acceleration_adjusted * throttle_gain
             rospy.loginfo('Throttle PID output %s', throttle_out)
             brake_out = 0
-
-        if (current_linear_velocity == 0 and throttle_out == 0):
-            self.pid_throttle.reset()
-
 
         return throttle_out, brake_out
 
@@ -73,7 +68,21 @@ class SpeedController(object):
         """
         resets pid controllers
         """
-        self.pid_throttle.reset()
+        self.pid_acceleration.reset()
+
+
+    @staticmethod
+    def adjust_acceleration(acceleration, current_linear_velocity):
+        adjustment_keep_braking = - 0.1
+        acceleration_friction = 0.5
+        friction_gain = 0.01
+
+        if (current_linear_velocity < 0.13):
+           return acceleration + adjustment_keep_braking
+        elif (current_linear_velocity < 1.0):
+           return acceleration
+        else:
+           return acceleration + acceleration_friction + friction_gain * current_linear_velocity
 
 
 def test_controller():
