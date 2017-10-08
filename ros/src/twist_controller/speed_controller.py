@@ -17,7 +17,7 @@ class SpeedController(object):
         self.wheel_radius = wheel_radius
 
         self.pid_acceleration = pid.PID(kp=2.5, ki=0.005, kd=0.6,
-                                        mn=-5, mx=4)
+                                        mn=decel_limit, mx=accel_limit)
 
         self.last_timestamp = rospy.get_time()
 
