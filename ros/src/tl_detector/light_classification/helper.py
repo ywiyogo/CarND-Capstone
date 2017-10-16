@@ -7,8 +7,10 @@ from glob import glob
 import numpy as np
 import random
 import math
+import yaml
 import os
 import re
+import cv2
 
 # Image dimensions taken from squeezenet
 WIDTH  = 227
@@ -36,6 +38,8 @@ def get_class(label):
 def get_image(image_file):
     image = imread(image_file, mode='RGB')
     image = resize_image(image)
+    # Change from BGR to RGB
+    image = image[...,::-1]
     return image
 
 def resize_image(image):
@@ -91,10 +95,6 @@ def gen_batch_function_LARA(data_path):
                         images.append(get_image(image_file))
                         break
 
-            # To visualise gen data
-#            print(labels[0])
-#            imshow(images[0])
-
             # Augment images
             images, labels = flip_lr(images, labels)
             # Yield
@@ -115,6 +115,77 @@ def gen_batch_function_LARA(data_path):
             if re.match(pattern, image_file):
                 X_test.append(get_image(image_file))
                 break
+
+    return get_batches_fn, np.array(X_test), np.array(y_test)
+
+def gen_batch_function_Bosch(data_path):
+    """
+    Generate function to create batches of training data
+    :param data_path: Path to folder that train.yaml
+
+    ################
+    # Bosch Dataset #
+    ################
+
+    """
+    # Paths to relative files
+    input_yaml = os.path.join(data_path, 'BOSCH/train.yaml')
+
+    bosch_data = yaml.load(open(input_yaml, 'rb').read())
+
+    def get_batches_fn():
+        """
+        Create batches of training data
+        :param batch_size: Batch Size
+        :return: Batches of training data
+        """
+
+        # Shuffle training data for each epoch
+        random.shuffle(bosch_data)
+
+        for batch_i in range(0, len(bosch_data), batch_size):
+
+            images = []
+            labels = []
+
+            for image_dict in bosch_data[batch_i:batch_i+batch_size]:
+                
+                label = 4
+
+                image_path = os.path.abspath(os.path.join(os.path.dirname(input_yaml), image_dict['path']))
+                image = get_image(image_path)
+                if image is None:
+                    raise IOError('Could not open image path', image_dict['path'])            
+
+                for box in image_dict['boxes']:
+                    if box['label'] == 'Red':
+                        label = 0
+                        break
+                    elif box['label'] == 'Yellow':
+                        label = 1
+                        break
+                    elif box['label'] == 'Green':
+                        label = 2
+                        break
+
+                images.append(image)
+                labels.append(label)
+
+#                print('>>>>>', label)
+#                cv2.imshow('labeled_image', image)
+#                cv2.waitKey(3000)
+
+            # Augment images
+            images, labels = flip_lr(images, labels)
+            # Yield
+            yield np.array(images), np.array(labels)
+
+
+    # Get X_test and y_test
+    print('Generating test set... {}% train, {}% testing'.format(RATIO*100, (1-RATIO)*100))
+    X_test = []
+    y_test = []
+
     return get_batches_fn, np.array(X_test), np.array(y_test)
 
 def flip_lr(X, y):

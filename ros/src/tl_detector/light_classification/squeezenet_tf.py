@@ -275,8 +275,9 @@ def main():
     kp = 0.5
 
     # Load training data generator
-    data_dir_LARA = os.path.join(os.getcwd(),"data")
-    get_batches_fn, X_test, y_test = helper.gen_batch_function_LARA(data_dir_LARA)
+    data_dir  = os.path.join(os.getcwd(),"data")
+    #get_batches_fn, X_test, y_test = helper.gen_batch_function_LARA(data_dir)
+    get_batches_fn, X_test, y_test = helper.gen_batch_function_Bosch(data_dir)
 
     # Placeholders
     images        = tf.placeholder(dtype=tf.float32, shape=(None, helper.HEIGHT, helper.WIDTH, 3), name="input_images")
