@@ -270,8 +270,8 @@ def main():
     data, sqz_mean = load_net('./SqueezeNet/sqz_full.mat')
 
     # Hyperparameters
-    epochs = 10
-    lr = 1e-4
+    epochs = 20
+    lr = 1e-3
     kp = 0.5
 
     # Load training data generator
@@ -346,8 +346,9 @@ def main():
             print('Epoch {}: loss = {}'.format(epoch+1, loss))
 
         # Test accuracy
-        test_accuracy = evaluate(X_test, y_test, helper.batch_size, sess)
-        print("Test Accuracy = {:.2f}%".format(test_accuracy*100))
+        if not (len(X_test) == 0):
+            test_accuracy = evaluate(X_test, y_test, helper.batch_size, sess)
+            print("Test Accuracy = {:.2f}%".format(test_accuracy*100))
 
         # Save the variables to disk.
         saver.save(sess, "model/model")

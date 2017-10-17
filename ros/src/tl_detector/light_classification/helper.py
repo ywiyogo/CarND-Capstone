@@ -18,7 +18,7 @@ HEIGHT = 227
 # Ratio of training to test data [0:1]
 RATIO  = 0.8
 
-batch_size = 64
+batch_size = 128
 
 
 def get_class(label):
@@ -150,7 +150,7 @@ def gen_batch_function_Bosch(data_path):
 
             for image_dict in bosch_data[batch_i:batch_i+batch_size]:
                 
-                label = 4
+                label = 3
 
                 image_path = os.path.abspath(os.path.join(os.path.dirname(input_yaml), image_dict['path']))
                 image = get_image(image_path)
@@ -182,7 +182,7 @@ def gen_batch_function_Bosch(data_path):
 
 
     # Get X_test and y_test
-    print('Generating test set... {}% train, {}% testing'.format(RATIO*100, (1-RATIO)*100))
+    #print('Generating test set... {}% train, {}% testing'.format(RATIO*100, (1-RATIO)*100))
     X_test = []
     y_test = []
 
@@ -190,7 +190,8 @@ def gen_batch_function_Bosch(data_path):
 
 def flip_lr(X, y):
     for i in range(len(y)):
-        X.append(np.fliplr(X[i]))
-        y.append(y[i])
+        if not (y == 0):
+            X.append(np.fliplr(X[i]))
+            y.append(y[i])
 
     return X, y
