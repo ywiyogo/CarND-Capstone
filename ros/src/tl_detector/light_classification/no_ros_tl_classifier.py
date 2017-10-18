@@ -1,13 +1,23 @@
-#from styx_msgs.msg import TrafficLight
+# Traffic Light classifier test
+# Author: YWiyogo
+# Usage: 1. copy the model files in to the model folder
+#        2. run python no_ros_tl_classifier.py <input_image>
+# Note: it works only for 1 input image file
+
 import tensorflow as tf
-import helper
 import cv2
 import os
 import numpy as np
 import click
+#from scipy.misc import imresize
+
 # Get the model directory
 MODEL_DIR = os.getcwd()+ "/model"
 LOG_DIR = os.getcwd()+ "/logs"
+
+# Image dimensions taken from squeezenet
+WIDTH  = 227
+HEIGHT = 227
 
 class TLClassifier(object):
     def __init__(self):
@@ -26,6 +36,13 @@ class TLClassifier(object):
             print('---------------- Loading complete ---------------')
 
 
+    def calc_softmax(self, x):
+        """Compute softmax values for each sets of scores in x."""
+        return np.exp(x)/np.sum(np.exp(x), axis=0)
+
+    def resize_image(self, image):
+        image = cv2.resize(image, (WIDTH, HEIGHT), interpolation = cv2.INTER_LINEAR)
+        return image
 
     def get_classification(self, image):
         """Determines the color of the traffic light in the image
@@ -45,7 +62,10 @@ class TLClassifier(object):
         #print("self.saver: ", self.saver)
 
         #print("Image: ", image.shape)
-        resized_img = helper.resize_image(image)
+        if image is None:
+            print("Error: image is None!")
+            return
+        resized_img = self.resize_image(image)
         print("resized shape: ", resized_img.shape)
 
 
@@ -71,7 +91,12 @@ class TLClassifier(object):
 
         print("Predictions: ", predictions)
         predictions = np.squeeze(predictions)   #squeeze array to 1 dim array
-        softmax = helper.calc_softmax(predictions)
+
+        if all(val==predictions[0] for val in predictions):
+            print("No prediction -> UNKNOWN")
+            return
+
+        softmax = self.calc_softmax(predictions)
         max_index = np.argmax(softmax)
         print("Softmax: ", softmax)
         print("argmax: ", max_index)
