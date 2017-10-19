@@ -1,8 +1,8 @@
 # Traffic Light classifier test
 # Author: YWiyogo
 # Usage: 1. copy the model files in to the model folder
-#        2. run python no_ros_tl_classifier.py <input_image>
-# Note: it works only for 1 input image file
+#        2. run python no_ros_tl_classifier.py <input_image> or
+#               python no_ros_tl_classifier.py <input folder>
 
 import tensorflow as tf
 import cv2
@@ -59,10 +59,7 @@ class TLClassifier(object):
 
         image = cv2.imread(image_path);
         self.saver.restore(self.sess, tf.train.latest_checkpoint(MODEL_DIR))
-        #print("graph: ",self.graph.get_operations())
-        #print("self.saver: ", self.saver)
 
-        #print("Image: ", image.shape)
         if image is None:
             print("Error: image is None!")
             return
@@ -73,7 +70,7 @@ class TLClassifier(object):
 
 
         mean_pixel = np.array([104.006, 116.669, 122.679], dtype=np.float32)
-        #preproc_img = helper.preprocess(resized_img, mean_pixel)
+
         expanded_img = np.expand_dims(resized_img, axis=0)
         if debug:
             print('--------------- Getting classification --------------')
@@ -82,11 +79,6 @@ class TLClassifier(object):
         # Placeholders
         relu_op = self.graph.get_tensor_by_name('Classifier/Relu_2:0')
         summary_writer = tf.summary.FileWriter(LOG_DIR, graph=self.sess.graph)
-
-        # softmax = tf.nn.softmax(logits)
-
-        # with tf.Session() as sess:
-        #     output = sess.run(softmax, feed_dict={logits: logit_data})
 
         predictions = self.sess.run(relu_op, feed_dict=
                                         {"input_images:0": expanded_img,
@@ -97,6 +89,7 @@ class TLClassifier(object):
 
         if all(val==predictions[0] for val in predictions):
             print("File: %s; result: %d -> UNKNOWN result (0,0,0,0)" % (image_path, 3))
+            return 3
 
         softmax = self.calc_softmax(predictions)
         max_index = np.argmax(softmax)
@@ -107,8 +100,7 @@ class TLClassifier(object):
             print("File: %s; result: %d" % (image_path, max_index))
 
         return max_index
-        print('--------------- Classification complete -------------')
-        #return TrafficLight.UNKNOWN
+
 
 @click.command()
 @click.argument('img_path')
