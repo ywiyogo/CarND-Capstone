@@ -207,26 +207,26 @@ def net_preloaded(preloaded, input_image, pooling, keep_prob=None):
         fc0 = flatten(x)
 
         # Fully Connected. Input = 512. Output = 256.
-        fc1_W = tf.Variable(tf.truncated_normal(shape=(512, 256), mean = 0, stddev = 0.1))
-        fc1_b = tf.Variable(tf.zeros(256))
+        fc1_W = tf.Variable(tf.truncated_normal(shape=(512, 128), mean = mu, stddev = sigma))
+        fc1_b = tf.Variable(tf.zeros(128))
         fc1   = tf.matmul(fc0, fc1_W) + fc1_b
         # Activation.
         fc1 = tf.nn.relu(fc1)
 
         # Fully Connected. Input = 256. Output = 128.
-        fc2_W = tf.Variable(tf.truncated_normal(shape=(256, 128), mean = 0, stddev = 0.1))
-        fc2_b = tf.Variable(tf.zeros(128))
+        fc2_W = tf.Variable(tf.truncated_normal(shape=(128, 32), mean = mu, stddev = sigma))
+        fc2_b = tf.Variable(tf.zeros(32))
         fc2   = tf.matmul(fc1, fc2_W) + fc2_b
         # Activation.
         fc2 = tf.nn.relu(fc2)
 
         # Fully Connected. Input = 128. Output = 48.
-        fc3_W = tf.Variable(tf.truncated_normal(shape=(128, 48), mean = 0, stddev = 0.1))
-        fc3_b = tf.Variable(tf.zeros(48))
+        fc3_W = tf.Variable(tf.truncated_normal(shape=(32, 12), mean = mu, stddev = sigma))
+        fc3_b = tf.Variable(tf.zeros(12))
         fc3   = tf.matmul(fc2, fc3_W) + fc3_b
 
         # Fully Connected. Input = 48. Output = 4.
-        fc4_W = tf.Variable(tf.truncated_normal(shape=(48, 4), mean = 0, stddev = 0.1))
+        fc4_W = tf.Variable(tf.truncated_normal(shape=(12, 4), mean = mu, stddev = sigma))
         fc4_b = tf.Variable(tf.zeros(4))
         fc4   = tf.matmul(fc3, fc4_W) + fc4_b
         # Activation.
@@ -270,14 +270,14 @@ def main():
     data, sqz_mean = load_net('./SqueezeNet/sqz_full.mat')
 
     # Hyperparameters
-    epochs = 20
-    lr = 1e-3
+    epochs = 10
+    lr = 1e-4
     kp = 0.5
 
     # Load training data generator
     data_dir  = os.path.join(os.getcwd(),"data")
-    #get_batches_fn, X_test, y_test = helper.gen_batch_function_LARA(data_dir)
-    get_batches_fn, X_test, y_test = helper.gen_batch_function_Bosch(data_dir)
+    get_batches_fn, X_test, y_test = helper.gen_batch_function_LARA(data_dir)
+    #get_batches_fn, X_test, y_test = helper.gen_batch_function_Bosch(data_dir)
 
     # Placeholders
     images        = tf.placeholder(dtype=tf.float32, shape=(None, helper.HEIGHT, helper.WIDTH, 3), name="input_images")
@@ -291,6 +291,7 @@ def main():
     # Loss and Training operations
     with tf.name_scope("Retraining"):
         cross_entropy_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=labels, logits=logits))
+        #training_operation = tf.train.AdamOptimizer(learning_rate = learning_rate, epsilon=1).minimize(cross_entropy_loss)
         training_operation = tf.train.AdamOptimizer(learning_rate = learning_rate).minimize(cross_entropy_loss)
 
     # Accuracy operation
