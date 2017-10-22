@@ -63,8 +63,9 @@ print("number of train imgs: %d " % len(train_data))
 no_of_train_imgs = len(train_data)
 no_of_val_imgs = len(val_data)
 
-no_of_batches = 132#int(no_of_train_imgs/batch_size)
+no_of_batches = int(no_of_train_imgs/batch_size)
 no_of_val_batches = 40 #int(no_of_val_imgs/batch_size)
+no_of_epochs = 5
 
 
 def evaluate_on_val():
@@ -338,7 +339,13 @@ def train_data_iterator():
             # (bbox format: [center_x, center_y, w, h, class_label] where
             # class_label is a string)
             img_class_labels=[]
+            img_gt_bboxes=[]
             for box in img_bboxes:
+                if box[0]<0 or box[1]<0 or box[2]<0 or box[3]<0:
+                    continue
+                else:
+                    img_gt_bboxes.append([box[0],box[1],box[2],box[3]])
+
                 if 'Red' in box[4]:
                     img_class_labels.append(0)
 
@@ -349,8 +356,8 @@ def train_data_iterator():
                     img_class_labels.append(2)
 
             class_labels_per_img.append(img_class_labels)
-
-            img_gt_bboxes = np.array([[b[0], b[1], b[2], b[3]] for b in img_bboxes])
+            img_gt_bboxes = np.array(img_gt_bboxes)
+            #img_gt_bboxes = np.array([[b[0], b[1], b[2], b[3]] for b in img_bboxes])
             # (bbox format: [center_x, center_y, w, h]. img_gt_bboxes has shape
             # [no_of_gt_bboxes_in_img, 4])
             gt_bboxes_per_img.append(img_gt_bboxes)
@@ -453,7 +460,6 @@ def train_data_iterator():
         yield (batch_imgs, batch_mask, batch_gt_deltas, batch_gt_bboxes, batch_class_labels)
 
 
-no_of_epochs = 5
 
 # create a saver for saving all model variables/parameters:
 saver = tf.train.Saver(write_version=tf.train.SaverDef.V2)
@@ -545,7 +551,7 @@ with tf.Session() as sess:
                     % model.model_dir, "wb"))
         print("bbox epoch loss: %g" % bbox_epoch_loss)
 
-        if epoch%5 == 0:
+        if epoch%4 == 0 or epoch == (no_of_epochs-1):
             # run the model on the validation data:
             val_loss = evaluate_on_val()
 
