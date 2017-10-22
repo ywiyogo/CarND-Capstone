@@ -63,8 +63,8 @@ print("number of train imgs: %d " % len(train_data))
 no_of_train_imgs = len(train_data)
 no_of_val_imgs = len(val_data)
 
-no_of_batches = int(no_of_train_imgs/batch_size)
-no_of_val_batches = int(no_of_val_imgs/batch_size)
+no_of_batches = 132#int(no_of_train_imgs/batch_size)
+no_of_val_batches = 40 #int(no_of_val_imgs/batch_size)
 
 
 def evaluate_on_val():
@@ -388,15 +388,17 @@ def train_data_iterator():
 
                 assigned_anchor_bbox = model.anchor_bboxes[anchor_idx]
                 anchor_cx, anchor_cy, anchor_w, anchor_h = assigned_anchor_bbox
-
                 gt_cx, gt_cy, gt_w, gt_h = gt_bbox
-
+                if gt_w < 0 or gt_h<0:
+                    print("WARNING: minux value gt_w %d, gt_h %d" % (gt_w, gt_h))
+                    print("GT bbox: ", gt_bbox)
+                    print("File: ", img_path)
+                    break
                 gt_delta = [0]*4
                 gt_delta[0] = (gt_cx - anchor_cx)/anchor_w
                 gt_delta[1] = (gt_cy - anchor_cy)/anchor_h
                 gt_delta[2] = np.log(gt_w/anchor_w)
                 gt_delta[3] = np.log(gt_h/anchor_h)
-
                 img_gt_deltas.append(gt_delta)
 
             gt_deltas_per_img.append(img_gt_deltas)

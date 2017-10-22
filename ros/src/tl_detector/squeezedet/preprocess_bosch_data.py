@@ -34,11 +34,15 @@ def preprocessing(bosch_data_dir, augmentation=0):
         image_path = os.path.abspath(os.path.join(os.path.dirname(input_yaml), image_dict['path']))
         bboxes=[]
         for box in image_dict['boxes']:
-            w = box["x_max"] - box["x_min"]
-            h = box["y_max"] - box["y_min"]
-            cx = w/2
-            cy = h/2
-            bboxes.append([cx, cy, w,h, box['label']])
+            # YW NOTE: ignore occluded box due to minus value in anchor calculation
+            if not box['occluded']:
+                w = box["x_max"] - box["x_min"]
+                h = box["y_max"] - box["y_min"]
+                cx = w/2
+                cy = h/2
+                bboxes.append([cx, cy, w,h, box['label']])
+            else:
+                print("Note: ignored occluded box in ", image_path)
         train_data_dict[image_path]=bboxes
         train_img_paths.append(image_path)
         train_img_boxes.append(bboxes)
