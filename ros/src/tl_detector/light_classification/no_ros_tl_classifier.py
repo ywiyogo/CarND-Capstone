@@ -107,7 +107,7 @@ class TLClassifier(object):
 def main(img_path):
     tlc = TLClassifier()
     if os.path.isdir(img_path):
-        imgfiles = img_path +"*.jpg"
+        imgfiles = os.path.join( img_path,"*.jpg")
         for img_file in sorted(glob.glob(imgfiles)):
             tlc.get_classification(img_file,0)
     else:
