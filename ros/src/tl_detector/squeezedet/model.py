@@ -18,8 +18,8 @@ class SqueezeDet_model(object):
         self.logs_dir =  os.path.join(self.project_dir, "training_logs/")
 
         self.batch_size = 16
-        self.img_height = 375
-        self.img_width = 1242
+        self.img_height = 720
+        self.img_width = 1280
 
         self.no_of_classes = 4
         self.class_string_to_label = {"Red": 0, "Yellow": 1, "Green": 2,
@@ -185,6 +185,7 @@ class SqueezeDet_model(object):
                     [-1, self.no_of_classes])
         # # convert the class logits to class probs:
         pred_class_probs = tf.nn.softmax(pred_class_logits)
+
         pred_class_probs = tf.reshape(pred_class_probs,
                     [self.batch_size, self.anchors_per_img, self.no_of_classes])
         self.pred_class_probs = pred_class_probs

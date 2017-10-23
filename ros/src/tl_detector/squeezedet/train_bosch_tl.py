@@ -11,14 +11,19 @@ import cv2
 import random
 import os
 import yaml
-
+import sys
 from model import SqueezeDet_model
 
 from utilities import sparse_to_dense, batch_IOU, draw_bboxes
 
+if not len(sys.argv) == 2:
+    print("Usage: python train_bosch_tl.py <dataset_dir_path>")
+    print("Bosch dataset directory is missing. Please pass the path of the directory as the argument!")
+    exit()
+
 project_dir = os.getcwd()
 
-data_dir = os.path.join(project_dir, "data")
+data_dir = os.path.join(sys.argv[1], "pickles")
 
 # change this to not overwrite all log data when you train the model:
 model_id = "1"
