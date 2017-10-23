@@ -108,8 +108,9 @@ def evaluate_on_val():
 
         for i in range(batch_size):
             # read the next img:
-            img_path = val_img_paths[batch_pointer + i]
+            img_path = os.path.join(bosch_data_dir,val_img_paths[batch_pointer + i])
             img = cv2.imread(img_path, -1)
+            assert not img is None, "invalid path: %s" % img_path
             img = cv2.resize(img, (img_width, img_height))
             img = img - train_mean_channels
             batch_imgs[i] = img
@@ -560,7 +561,7 @@ with tf.Session() as sess:
                     % model.model_dir, "wb"))
         print("bbox epoch loss: %g" % bbox_epoch_loss)
 
-        if epoch%4 == 0 or epoch == (no_of_epochs-1):
+        if epoch%3 == 0 or epoch == (no_of_epochs-1):
             # run the model on the validation data:
             val_loss = evaluate_on_val()
 
