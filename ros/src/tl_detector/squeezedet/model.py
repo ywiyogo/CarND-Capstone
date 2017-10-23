@@ -5,13 +5,29 @@
 import numpy as np
 import tensorflow as tf
 import os
-import pickle
+import joblib   # like pickle but it seems to be faster
 
 from utilities import safe_exp, bbox_transform, bbox_transform_inv, nms
 
+def analyse_tf_graph(MODEL_PATH):
+    saver = tf.train.Saver()
+    sess = tf.Session()
+    sess.run(cw)
+
+    #sess.run(tf.global_variables_initializer())
+    model_dir = os.path.join(os.getcwd(),"data","pretrainedmodel")
+    saver.save(sess, model_dir)
+
+    saver = tf.train.import_meta_graph(model_dir+".meta")
+    saver.restore(sess,tf.train.latest_checkpoint('./'))
+
+    graph = tf.get_default_graph()
+    layer1 = graph.get_tensor_by_name("conv1")
+    print(layer1)
+
 class SqueezeDet_model(object):
 
-    def __init__(self, model_id):
+    def __init__(self, model_id, pretrained_model_path):
         self.model_id = model_id
 
         self.project_dir = project_dir = os.getcwd()
@@ -58,9 +74,10 @@ class SqueezeDet_model(object):
         self.load_pretrained_model = True
         if self.load_pretrained_model:
             # get the weights of a pretrained SqueezeNet model:
-            print(os.path.join(os.getcwd(),"data/caffemodel_weights.pkl"))
-            with open(os.path.join(os.getcwd(),"data/caffemodel_weights.pkl"), "rb") as f:
-                self.caffemodel_weights = pickle.load(f, encoding='bytes')
+            model_path = os.path.join(os.getcwd(),pretrained_model_path)
+            print("Pretrained model: ", model_path)
+            with open(model_path, "rb") as f:
+                self.caffemodel_weights = joblib.load(model_path)
 
 
         # create all dirs for storing checkpoints and other log data:
@@ -169,7 +186,9 @@ class SqueezeDet_model(object):
         fire_11 = self.fire_layer("fire11", fire_10, s1x1=96, e1x1=384, e3x3=384)
         dropout_11 = tf.nn.dropout(fire_11, self.keep_prob_ph, name="dropout_11")
 
+        # see the paper: K(4+1+C)
         no_of_outputs = self.anchors_per_gridpoint*(self.no_of_classes + 1 + 4)
+
         self.preds = self.conv_layer("preds", dropout_11, filters=no_of_outputs,
                     size=3, stride=1, padding="SAME", relu=False, stddev=0.0001)
 
@@ -179,12 +198,19 @@ class SqueezeDet_model(object):
         # get all predicted class probabilities:
         # # compute the total number of predicted class probs per grid point:
         no_of_class_probs = self.anchors_per_gridpoint*self.no_of_classes
+        print("no_of_class_probs:", no_of_class_probs)
         # # get all predicted class logits:
         pred_class_logits = preds[:, :, :, :no_of_class_probs]
+        print("pred_class_logits:", pred_class_logits)
+
         pred_class_logits = tf.reshape(pred_class_logits,
                     [-1, self.no_of_classes])
         # # convert the class logits to class probs:
         pred_class_probs = tf.nn.softmax(pred_class_logits)
+
+        print("no_of_class_probs:", no_of_class_probs)
+        print("pred_class_probs:", pred_class_probs)
+        print("array:", [self.batch_size, self.anchors_per_img, self.no_of_classes])
 
         pred_class_probs = tf.reshape(pred_class_probs,
                     [self.batch_size, self.anchors_per_img, self.no_of_classes])
@@ -345,15 +371,22 @@ class SqueezeDet_model(object):
         use_pretrained_params = False
         if self.load_pretrained_model:
             # get the pretrained parameter values if possible:
-            cw = self.caffemodel_weights
+            cw = self.caffemodel_weights    #type is a dict
+
+            #for key, value in cw.items() :
+                #print(key)
+
             if layer_name in cw:
                 # re-order the caffe kernel with shape [filters, channels, h, w]
                 # to a tf kernel with shape [h, w, channels, filters]:
                 kernel_val = np.transpose(cw[layer_name][0], [2,3,1,0])
                 bias_val = cw[layer_name][1]
                 # check the shape:
+                #print("kernel_val: %s compared to %s" %(kernel_val.shape, (size, size, channels, filters)))
+                print("bias_val: ", bias_val.shape)
                 if kernel_val.shape == (size, size, channels, filters) and (bias_val.shape == (filters, )):
                     use_pretrained_params = True
+                    print("kernel shape of %s match!, Use the pretrained parameters"% layer_name)
                 else:
                     print("Shape of the pretrained parameter of %s does not match, use randomly initialized parameter" % layer_name)
             else:
@@ -489,9 +522,12 @@ class SqueezeDet_model(object):
     def set_anchors(self):
         # NOTE! this function is taken directly from
         # github.com/BichenWuUCB/squeezeDet
-
-        H, W, B = 24, 78, 9
-
+        # H is the number of grid in vertical axis
+        # W is the number of grid in the horizontal axis
+        H = int(self.img_height / 16)
+        W = int(self.img_width / 16)
+        B = 9
+        print("H,W,B: %d, %d, %d" % (H,W,B))
         anchor_shapes = np.reshape(
             [np.array(
                 [[  36.,  37.], [ 366., 174.], [ 115.,  59.],
@@ -499,7 +535,7 @@ class SqueezeDet_model(object):
                 [ 224., 108.], [  78., 170.], [  72.,  43.]])]*H*W,
             (H, W, B, 2)
         )
-
+        print("anchor_shapes: ", anchor_shapes.shape)
         center_x = np.reshape(
             np.transpose(
                 np.reshape(
@@ -510,7 +546,7 @@ class SqueezeDet_model(object):
             ),
             (H, W, B, 1)
         )
-
+        print("center_x: ", center_x.shape)
         center_y = np.reshape(
             np.transpose(
                 np.reshape(
@@ -521,10 +557,12 @@ class SqueezeDet_model(object):
             ),
             (H, W, B, 1)
         )
-
+        print("center_y: ", center_y.shape)
+        # reshaping array to N rows and 4 columns
         anchors = np.reshape(
             np.concatenate((center_x, center_y, anchor_shapes), axis=3),
             (-1, 4)
         )
-
+        print("anchors: ", anchors.shape)
         return anchors
+

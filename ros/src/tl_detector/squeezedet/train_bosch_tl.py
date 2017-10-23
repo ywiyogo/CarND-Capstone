@@ -22,13 +22,16 @@ if not len(sys.argv) == 2:
     exit()
 
 project_dir = os.getcwd()
-
-data_dir = os.path.join(sys.argv[1], "pickles")
+bosch_data_dir = sys.argv[1]
+data_dir_pickles = os.path.join(sys.argv[1], "pickles")
 
 # change this to not overwrite all log data when you train the model:
 model_id = "1"
+PRETRAINED_MODEL_10 = "data/SqueezeNet/squeezenet_v1.0_SR_0.750.pkl"
+PRETRAINED_MODEL_11 = "data/SqueezeNet/squeezenet_v1.1.pkl"
 
-model = SqueezeDet_model(model_id)
+
+model = SqueezeDet_model(model_id, PRETRAINED_MODEL_11)
 
 batch_size = model.batch_size
 img_height = model.img_height
@@ -39,7 +42,7 @@ no_of_classes = model.no_of_classes
 #train_mean_channels = pickle.load(open("data/mean_channels.pkl"))
 
 # load the training data from disk
-with open(os.path.join(data_dir,"bosch_dict_train_data.pkl"), "rb") as f:
+with open(os.path.join(data_dir_pickles,"bosch_dict_train_data.pkl"), "rb") as f:
     train_data_dict = pickle.load(f, encoding='bytes')
 
 orig_train_img_paths = []
@@ -59,7 +62,7 @@ train_data = list(zip(orig_train_img_paths[:int(no_of_imgs*tratio)],
 val_data = list(zip(orig_train_img_paths[-int(no_of_imgs*vratio):],
                      train_bboxes_per_img[-int(no_of_imgs*vratio):]))
 # load the mean color channels of the train imgs:
-with open(os.path.join(data_dir,"bosch_mean_channels.pkl"), "rb") as f:
+with open(os.path.join(data_dir_pickles,"bosch_mean_channels.pkl"), "rb") as f:
     train_mean_channels= pickle.load(f, encoding='bytes')
 
 print("number of val imgs: %d" % len(val_data))
@@ -334,8 +337,9 @@ def train_data_iterator():
 
         for i in range(batch_size):
             # read the next img:
-            img_path = train_img_paths[batch_pointer + i]
+            img_path = os.path.join(bosch_data_dir, train_img_paths[batch_pointer + i])
             img = cv2.imread(img_path, -1)
+            assert not img is None, " img_path is %s" % img_path
             img = cv2.resize(img, (img_width, img_height))
             img = img - train_mean_channels
             batch_imgs[i] = img
