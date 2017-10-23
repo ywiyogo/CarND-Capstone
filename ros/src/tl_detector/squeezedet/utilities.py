@@ -5,10 +5,37 @@ import cv2
 import numpy as np
 import tensorflow as tf
 
+def vis_gt_bboxes(img_path, bboxes):
+    class_to_color = {"Red": (99,71,255),
+                  "Yellow": (128,0, 128),
+                  "Green": (0, 128, 0)}
+    img = cv2.imread(img_path, -1)
+
+    for box in bboxes: 
+        x_left = int(box[0] - box[2]/2)
+        y_bottom = int(box[1] + box[3]/2)
+        x_right = int(box[0] + box[2]/2)
+        y_top = int(box[1] - box[3]/2)
+        color=0
+        if "Red" in box[4]:
+            color=class_to_color["Red"]
+        elif "Yellow" in box[4]:
+            color=class_to_color["Yellow"]
+        elif "Green" in box[4]:
+            color=class_to_color["Green"]
+        else:
+            color = (0,0,255)
+        # draw the bbox:
+        cv2.rectangle(img, (x_left, y_top), (x_right, y_bottom),
+                    color, 2)
+
+    img_with_bboxes = img
+    return img_with_bboxes
+
 # function for drawing all ground truth bboxes of an image on the image:
 def visualize_gt_label(img_path, label_path):
-    class_to_color = {"Red": (255,99,71),
-                      "Yellow": (128,128,0),
+    class_to_color = {"Red": (0,0, 255),
+                      "Yellow": (128,0, 128),
                       "Green": (0,128,0)}
 
     img = cv2.imread(img_path, -1)
@@ -34,8 +61,8 @@ def visualize_gt_label(img_path, label_path):
 # function for drawing a set of bboxes in an img:
 def draw_bboxes(img, bboxes, class_labels, probs=None):
     class_label_to_string = {0: "Red", 1: "Yellow", 2: "Green"}
-    class_to_color = {"Red": (255, 0, 0),
-                      "Yellow": (255, 255, 0),
+    class_to_color = {"Red": (0, 0, 255),
+                      "Yellow": (255, 0, 255),
                       "Green": (124,252,0)}
     if probs is None:
         #ground truth
