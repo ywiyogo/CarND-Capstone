@@ -47,12 +47,12 @@ def preprocessing(bosch_data_dir, augmentation=1):
         train_data_dict[image_dict['path']]=bboxes
         train_img_paths.append(image_dict['path'])
         train_img_boxes.append(bboxes)
-        
+
         if DEBUG:
             abs_path = os.path.join(bosch_data_dir, image_dict['path'])
             bbox_img = vis_gt_bboxes(abs_path, bboxes)
             assert not bbox_img is None
-            print("BBox: ", bboxes) 
+            print("BBox: ", bboxes)
             cv2.imshow("pics", bbox_img)
             cv2.waitKey(0)
 
@@ -62,17 +62,18 @@ def preprocessing(bosch_data_dir, augmentation=1):
         os.makedirs(save_dir)
 
     mean_channel_path = os.path.join(save_dir,"bosch_mean_channels.pkl")
-    
+
 
     if not augmentation:
         # Save as dict
         pickle.dump(train_data_dict, open(os.path.join(save_dir, "bosch_dict_train_data.pkl"), "wb"))
-        
+
     else:
         augment_train_data(bosch_data_dir, bosch_data, train_data_dict)
-    #compute_mean_channel(bosch_data_dir, train_img_paths)
+
+    compute_mean_channel(bosch_data_dir, train_img_paths)
     print("Original number of images: ", len(train_img_paths))
-    
+
 
 def compute_mean_channel(data_dir, train_img_paths):
     # compute the mean color channels of the train imgs:
@@ -151,7 +152,7 @@ def augment_train_data(bosch_data_dir, bosch_data, train_data_dict):
             if DEBUG:
                 abs_path = os.path.join(bosch_data_dir, img_flipped_path)
                 bbox_img = vis_gt_bboxes(abs_path, augmented_bboxes)
-                assert not bbox_img is None 
+                assert not bbox_img is None
                 cv2.imshow("Augmented", bbox_img)
                 cv2.waitKey(0)
 

@@ -75,9 +75,8 @@ class SqueezeDet_model(object):
         if self.load_pretrained_model:
             # get the weights of a pretrained SqueezeNet model:
             model_path = os.path.join(os.getcwd(),pretrained_model_path)
-            print("Pretrained model: ", model_path)
-            with open(model_path, "rb") as f:
-                self.caffemodel_weights = joblib.load(model_path)
+            assert os.path.exists(model_path), "Cannot find retrained model: %s " % model_path
+            self.caffemodel_weights = joblib.load(model_path)
 
 
         # create all dirs for storing checkpoints and other log data:
@@ -383,7 +382,6 @@ class SqueezeDet_model(object):
                 bias_val = cw[layer_name][1]
                 # check the shape:
                 #print("kernel_val: %s compared to %s" %(kernel_val.shape, (size, size, channels, filters)))
-                print("bias_val: ", bias_val.shape)
                 if kernel_val.shape == (size, size, channels, filters) and (bias_val.shape == (filters, )):
                     use_pretrained_params = True
                     print("kernel shape of %s match!, Use the pretrained parameters"% layer_name)
@@ -535,7 +533,7 @@ class SqueezeDet_model(object):
                 [ 224., 108.], [  78., 170.], [  72.,  43.]])]*H*W,
             (H, W, B, 2)
         )
-        print("anchor_shapes: ", anchor_shapes.shape)
+
         center_x = np.reshape(
             np.transpose(
                 np.reshape(
@@ -546,7 +544,7 @@ class SqueezeDet_model(object):
             ),
             (H, W, B, 1)
         )
-        print("center_x: ", center_x.shape)
+
         center_y = np.reshape(
             np.transpose(
                 np.reshape(
@@ -557,12 +555,11 @@ class SqueezeDet_model(object):
             ),
             (H, W, B, 1)
         )
-        print("center_y: ", center_y.shape)
         # reshaping array to N rows and 4 columns
         anchors = np.reshape(
             np.concatenate((center_x, center_y, anchor_shapes), axis=3),
             (-1, 4)
         )
-        print("anchors: ", anchors.shape)
+
         return anchors
 
