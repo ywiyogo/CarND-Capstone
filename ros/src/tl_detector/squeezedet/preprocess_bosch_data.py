@@ -39,6 +39,12 @@ def preprocessing(bosch_data_dir, augmentation=1):
             if not box['occluded']:
                 w = box["x_max"] - box["x_min"]
                 h = box["y_max"] - box["y_min"]
+                if w<0:
+                    print("Warning negative value of width %f, %s" % (w,image_dict['path']))
+                    w=abs(w)
+                if h < 0:
+                    print("Warning negative value of height %f, %s"% (h,image_dict['path']))
+                    h=abs(h)
                 cx = box["x_min"] + w/2
                 cy = box["y_min"] + h/2
                 bboxes.append([cx, cy, w,h, box['label']])
@@ -135,14 +141,22 @@ def augment_train_data(bosch_data_dir, bosch_data, train_data_dict):
             augmented_bboxes=[]
             for box in image_dict['boxes']:
                 if not box['occluded']:
-                    x_min = box["x_min"]
-                    x_max = box["x_max"]
+                    x_left = box["x_min"]
+                    x_right = box["x_max"]
 
-                    x_max_flipped = img_width/2 - (x_min -img_width/2)
-                    x_min_flipped = img_width/2 - (x_max -img_width/2)
-                    w = x_max_flipped - x_min_flipped
+                    x_right_flipped = img_width/2 - (x_left -img_width/2)
+                    x_left_flipped = img_width/2 - (x_right -img_width/2)
+                    w = x_right_flipped - x_left_flipped
                     h = box["y_max"] - box["y_min"]
-                    cx = x_min_flipped + w/2
+
+                    if w < 0:
+                        print("Warning negative value of augmented width %f %s" % (w,img_flipped_path))
+                        w=abs(w)
+                    if h < 0:
+                        print("Warning negative value of augmented height %f %s" % (h,img_flipped_path))
+                        h=abs(h)
+
+                    cx = x_left_flipped + w/2
                     cy = box["y_min"] + h/2
                     augmented_bboxes.append([cx, cy, w,h, box['label']])
 

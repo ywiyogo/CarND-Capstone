@@ -42,7 +42,7 @@ class SqueezeDet_model(object):
                                       "off": 3}
 
         # training parameters:
-        self.initial_lr = 0.01
+        self.initial_lr = 0.008
         self.decay_steps =  10000
         self.lr_decay_rate = 0.5
         self.momentum = 0.9

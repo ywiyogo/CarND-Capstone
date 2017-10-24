@@ -52,8 +52,8 @@ for path, boxes in train_data_dict.items():
     train_bboxes_per_img.append(boxes)
 
 no_of_imgs = len(train_data_dict)
-# # select 80 % of the imgs as train data, 20 % as val:
-tratio = 0.8
+# select 90 % of the imgs as train data
+tratio = 0.9
 vratio = 1 - tratio
 
 train_data = list(zip(orig_train_img_paths[:int(no_of_imgs*tratio)],
@@ -71,9 +71,9 @@ print("number of train imgs: %d " % len(train_data))
 no_of_train_imgs = len(train_data)
 no_of_val_imgs = len(val_data)
 
-no_of_batches = int(no_of_train_imgs/batch_size)
-no_of_val_batches = 40 #int(no_of_val_imgs/batch_size)
-no_of_epochs = 5
+no_of_batches = 150 #int(no_of_train_imgs/batch_size)
+no_of_val_batches = int(no_of_val_imgs/batch_size)
+no_of_epochs = 10
 
 
 def evaluate_on_val():
@@ -171,12 +171,24 @@ def evaluate_on_val():
                 anchor_cx, anchor_cy, anchor_w, anchor_h = assigned_anchor_bbox
 
                 gt_cx, gt_cy, gt_w, gt_h = gt_bbox
-
+                if gt_w < 0 or gt_h<0:
+                    print("WARNING: minux value gt_w %d, gt_h %d" % (gt_w, gt_h))
+                    print("GT bbox: ", gt_bbox)
+                    print("File: ", img_path)
+                    gt_w=abs(gt_w)
+                    gt_h=abs(gt_h)
                 gt_delta = [0]*4
                 gt_delta[0] = (gt_cx - anchor_cx)/anchor_w
                 gt_delta[1] = (gt_cy - anchor_cy)/anchor_h
-                gt_delta[2] = np.log(gt_w/anchor_w)
-                gt_delta[3] = np.log(gt_h/anchor_h)
+                if gt_w >= 0:
+                    gt_delta[2] = np.log(gt_w/anchor_w)
+                else:
+                    gt_delta[2] = -1 #hack
+
+                if gt_h >= 0:
+                    gt_delta[3] = np.log(gt_h/anchor_h)
+                else:
+                    gt_delta[3] = -1 #hack
 
                 img_gt_deltas.append(gt_delta)
 
@@ -410,7 +422,8 @@ def train_data_iterator():
                     print("WARNING: minux value gt_w %d, gt_h %d" % (gt_w, gt_h))
                     print("GT bbox: ", gt_bbox)
                     print("File: ", img_path)
-                    break
+                    gt_w=abs(gt_w)
+                    gt_h=abs(gt_h)
                 gt_delta = [0]*4
                 gt_delta[0] = (gt_cx - anchor_cx)/anchor_w
                 gt_delta[1] = (gt_cy - anchor_cy)/anchor_h
@@ -472,7 +485,7 @@ def train_data_iterator():
 
 
 # create a saver for saving all model variables/parameters:
-saver = tf.train.Saver(write_version=tf.train.SaverDef.V2)
+saver = tf.train.Saver()
 
 # initialize all log data containers:
 train_loss_per_epoch = []
@@ -561,7 +574,7 @@ with tf.Session() as sess:
                     % model.model_dir, "wb"))
         print("bbox epoch loss: %g" % bbox_epoch_loss)
 
-        if epoch%3 == 0 or epoch == (no_of_epochs-1):
+        if epoch == int(no_of_epochs/2)-1 or epoch == (no_of_epochs-1):
             # run the model on the validation data:
             val_loss = evaluate_on_val()
 
@@ -572,26 +585,26 @@ with tf.Session() as sess:
                         % model.model_dir, "wb"))
             print("validation loss: %g" % val_loss)
 
-            if val_loss < max(best_epoch_losses): # (if top 5 performance on val:)
+            #if val_loss < max(best_epoch_losses): # (if top 5 performance on val:)
                 # save the model weights to disk:
-                checkpoint_path = (model.checkpoints_dir + "model_" +
-                            model.model_id + "_epoch_" + str(epoch + 1) + ".ckpt")
-                saver.save(sess, checkpoint_path)
-                print("checkpoint saved in file: %s" % checkpoint_path)
+            checkpoint_path = (model.checkpoints_dir + "model_" +
+                        model.model_id + "_epoch_" + str(epoch + 1) + ".ckpt")
+            saver.save(sess, checkpoint_path)
+            print("checkpoint saved in file: %s" % checkpoint_path)
 
-                # update the top 5 val losses:
-                index = best_epoch_losses.index(max(best_epoch_losses))
-                best_epoch_losses[index] = val_loss
+            # update the top 5 val losses:
+            index = best_epoch_losses.index(max(best_epoch_losses))
+            best_epoch_losses[index] = val_loss
 
-                #plot the val loss vs epoch and save to disk:
-                plt.figure(1)
-                plt.plot(val_loss_per_epoch, "k^")
-                plt.plot(val_loss_per_epoch, "k")
-                plt.ylabel("loss")
-                plt.xlabel("epoch")
-                plt.title("validation loss per epoch")
-                plt.savefig("%sval_loss_per_epoch.png" % model.model_dir)
-                plt.close(1)
+            #plot the val loss vs epoch and save to disk:
+            plt.figure(1)
+            plt.plot(val_loss_per_epoch, "k^")
+            plt.plot(val_loss_per_epoch, "k")
+            plt.ylabel("loss")
+            plt.xlabel("epoch")
+            plt.title("validation loss per epoch")
+            plt.savefig("%sval_loss_per_epoch.png" % model.model_dir)
+            plt.close(1)
 
         # plot the training loss vs epoch and save to disk:
         plt.figure(1)
