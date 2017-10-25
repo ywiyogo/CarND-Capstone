@@ -18,6 +18,7 @@ def optimize(max_evals=30):
             return_value = {'loss': training(**options),
                             'status': hyperopt.STATUS_OK,
                             'options': options}
+            print(return_value)
             tf.reset_default_graph()
             return return_value
         except Exception as err:
@@ -53,6 +54,8 @@ def training(learning_rate, epochs, top_N_detections,
 
 
 if __name__ == "__main__":
-    optimize()
+    best, trials = optimize(max_evals=3)
+    print("best is {}".format(best))
+    print("trials are {}".format(trials))
 
 
