@@ -71,7 +71,7 @@ print("number of train imgs: %d " % len(train_data))
 no_of_train_imgs = len(train_data)
 no_of_val_imgs = len(val_data)
 
-no_of_batches = 150 #int(no_of_train_imgs/batch_size)
+no_of_batches = 260 #int(no_of_train_imgs/batch_size)
 no_of_val_batches = int(no_of_val_imgs/batch_size)
 no_of_epochs = 10
 

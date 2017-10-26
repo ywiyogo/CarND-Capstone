@@ -6,12 +6,14 @@ import numpy as np
 import tensorflow as tf
 
 def vis_gt_bboxes(img_path, bboxes):
-    class_to_color = {"Red": (99,71,255),
-                  "Yellow": (128,0, 128),
-                  "Green": (0, 128, 0)}
+    class_label_to_string = {0: "Red", 1: "Yellow", 2: "Green", 3: "Off"}
+    class_to_color = {"Red": (0, 0, 255),
+                      "Yellow": (0, 255, 255),
+                      "Green": (0,255,0),
+                      "Off": (19, 139,69)}
     img = cv2.imread(img_path, -1)
 
-    for box in bboxes: 
+    for box in bboxes:
         x_left = int(box[0] - box[2]/2)
         y_bottom = int(box[1] + box[3]/2)
         x_right = int(box[0] + box[2]/2)
@@ -24,7 +26,7 @@ def vis_gt_bboxes(img_path, bboxes):
         elif "Green" in box[4]:
             color=class_to_color["Green"]
         else:
-            color = (0,0,255)
+            color = class_to_color["Off"]
         # draw the bbox:
         cv2.rectangle(img, (x_left, y_top), (x_right, y_bottom),
                     color, 2)
@@ -36,7 +38,8 @@ def vis_gt_bboxes(img_path, bboxes):
 def visualize_gt_label(img_path, label_path):
     class_to_color = {"Red": (0,0, 255),
                       "Yellow": (128,0, 128),
-                      "Green": (0,128,0)}
+                      "Green": (0,128,0),
+                      "Off": (19, 139,69)}
 
     img = cv2.imread(img_path, -1)
 
@@ -44,7 +47,7 @@ def visualize_gt_label(img_path, label_path):
         for line in label_file:
             splitted_line = line.split(" ")
             bbox_class = splitted_line[0].lower().strip()
-            if bbox_class not in ["Red", "Yellow", "Green"]:
+            if bbox_class not in ["Red", "Yellow", "Green", "Off"]:
                 break
             x_left = int(float(splitted_line[4]))
             y_bottom = int(float(splitted_line[5]))
@@ -60,10 +63,11 @@ def visualize_gt_label(img_path, label_path):
 
 # function for drawing a set of bboxes in an img:
 def draw_bboxes(img, bboxes, class_labels, probs=None):
-    class_label_to_string = {0: "Red", 1: "Yellow", 2: "Green"}
+    class_label_to_string = {0: "Red", 1: "Yellow", 2: "Green", 3: "Off"}
     class_to_color = {"Red": (0, 0, 255),
-                      "Yellow": (255, 0, 255),
-                      "Green": (124,252,0)}
+                      "Yellow": (0, 255, 255),
+                      "Green": (0,255,0),
+                      "Off": (19, 139,69)}
     if probs is None:
         #ground truth
         probs=[]

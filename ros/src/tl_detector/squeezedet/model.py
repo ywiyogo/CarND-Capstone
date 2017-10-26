@@ -27,7 +27,7 @@ def analyse_tf_graph(MODEL_PATH):
 
 class SqueezeDet_model(object):
 
-    def __init__(self, model_id, pretrained_model_path):
+    def __init__(self, model_id, pretrained_model_path=None, testmode=False):
         self.model_id = model_id
 
         self.project_dir = project_dir = os.getcwd()
@@ -43,8 +43,8 @@ class SqueezeDet_model(object):
 
         # training parameters:
         self.initial_lr = 0.008
-        self.decay_steps =  10000
-        self.lr_decay_rate = 0.5
+        self.decay_steps =  1000
+        self.lr_decay_rate = 0.1
         self.momentum = 0.9
         self.max_grad_norm = 1.0
         self.weight_decay = 0.0001
@@ -59,25 +59,29 @@ class SqueezeDet_model(object):
         self.top_N_detections = 64
         self.prob_thresh = 0.005
         self.nms_thresh = 0.4
-        self.plot_prob_thresh = 0.7
+        self.plot_prob_thresh = 0.6
 
         # other general parameters:
         self.exp_thresh = 1.0
         self.epsilon = 1e-16
 
         # loss coefficients:
-        self.loss_coeff_class = 1.0
+        self.loss_coeff_class = 0.5
         self.loss_coeff_conf_pos = 75.0
         self.loss_coeff_conf_neg = 100.0
-        self.loss_coeff_bbox = 5.0
+        self.loss_coeff_bbox = 1.0
 
-        self.load_pretrained_model = True
-        if self.load_pretrained_model:
+        self.load_pretrained_model = False
+
+        if not pretrained_model_path is None:
+            self.load_pretrained_model = True
             # get the weights of a pretrained SqueezeNet model:
             model_path = os.path.join(os.getcwd(),pretrained_model_path)
             assert os.path.exists(model_path), "Cannot find retrained model: %s " % model_path
             self.caffemodel_weights = joblib.load(model_path)
 
+        if testmode:
+            self.batch_size=1
 
         # create all dirs for storing checkpoints and other log data:
         self.create_model_dirs()
@@ -94,8 +98,9 @@ class SqueezeDet_model(object):
         # compute the batch loss and add to the comp. graph:
         self.add_loss_op()
 
-        # add a training operation (for minimizing the loss) to the comp. graph:
-        self.add_train_op()
+        if not testmode:
+            # add a training operation (for minimizing the loss) to the comp. graph:
+            self.add_train_op()
 
     def create_model_dirs(self):
         self.model_dir = self.logs_dir + "model_%s" % self.model_id + "/"
@@ -108,7 +113,7 @@ class SqueezeDet_model(object):
 
     def add_placeholders(self):
         self.imgs_ph = tf.placeholder(tf.float32,
-                    shape=[self.batch_size, self.img_height, self.img_width, 3],
+                    shape=[None, self.img_height, self.img_width, 3],
                     name="imgs_ph")
 
         self.keep_prob_ph = tf.placeholder(tf.float32, name="keep_prob_ph")
@@ -163,7 +168,6 @@ class SqueezeDet_model(object):
         # (NOTE! the layer names ("conv1", "fire2" etc.) below must match
         # the names in the pretrained SqueezeNet model when using this for
         # initialization)
-
         conv_1 = self.conv_layer("conv1", self.imgs_ph, filters=64, size=3,
                     stride=2, padding="SAME", freeze=True)
         pool_1 = self.pooling_layer(conv_1, size=3, stride=2, padding="SAME")
@@ -196,136 +200,188 @@ class SqueezeDet_model(object):
 
         # get all predicted class probabilities:
         # # compute the total number of predicted class probs per grid point:
-        no_of_class_probs = self.anchors_per_gridpoint*self.no_of_classes
-        print("no_of_class_probs:", no_of_class_probs)
-        # # get all predicted class logits:
-        pred_class_logits = preds[:, :, :, :no_of_class_probs]
-        print("pred_class_logits:", pred_class_logits)
+        with tf.variable_scope('InterpretOutput') as scope:
+            no_of_class_probs = self.anchors_per_gridpoint * self.no_of_classes
+            print("no_of_class_probs:", no_of_class_probs)
+            # # get all predicted class logits:
+            pred_class_logits = preds[:, :, :, :no_of_class_probs]
+            print("pred_class_logits:", pred_class_logits)
 
-        pred_class_logits = tf.reshape(pred_class_logits,
-                    [-1, self.no_of_classes])
-        # # convert the class logits to class probs:
-        pred_class_probs = tf.nn.softmax(pred_class_logits)
+            pred_class_logits = tf.reshape(pred_class_logits,
+                        [-1, self.no_of_classes])
+            # # convert the class logits to class probs:
+            pred_class_probs = tf.nn.softmax(pred_class_logits, name='pred_class_probs')
 
-        print("no_of_class_probs:", no_of_class_probs)
-        print("pred_class_probs:", pred_class_probs)
-        print("array:", [self.batch_size, self.anchors_per_img, self.no_of_classes])
+            print("no_of_class_probs:", no_of_class_probs)
+            print("pred_class_probs:", pred_class_probs)
+            print("array:", [self.batch_size, self.anchors_per_img, self.no_of_classes])
 
-        pred_class_probs = tf.reshape(pred_class_probs,
-                    [self.batch_size, self.anchors_per_img, self.no_of_classes])
-        self.pred_class_probs = pred_class_probs
+            pred_class_probs = tf.reshape(pred_class_probs,
+                        [self.batch_size, self.anchors_per_img, self.no_of_classes])
+            self.pred_class_probs = pred_class_probs
 
-        # get all predicted confidence scores:
-        # # compute the total number of predicted conf scores per grid point:
-        no_of_conf_scores = self.anchors_per_gridpoint
-        # # get all predicted conf scores:
-        pred_conf_scores = preds[:, :, :, no_of_class_probs:no_of_class_probs + no_of_conf_scores]
-        pred_conf_scores = tf.reshape(pred_conf_scores,
-                    [self.batch_size, self.anchors_per_img])
-        # # normalize the conf scores to lay between 0 and 1:
-        pred_conf_scores = tf.sigmoid(pred_conf_scores)
-        self.pred_conf_scores = pred_conf_scores
+            # get all predicted confidence scores:
+            # # compute the total number of predicted conf scores per grid point:
+            no_of_conf_scores = self.anchors_per_gridpoint
+            # # get all predicted conf scores:
+            pred_conf_scores = preds[:, :, :, no_of_class_probs:no_of_class_probs + no_of_conf_scores]
+            if self.load_pretrained_model:
+                pred_conf_scores = tf.reshape(pred_conf_scores,
+                        [self.batch_size, self.anchors_per_img], name='pred_confidence_score')
+            else:
+                pred_conf_scores = tf.reshape(pred_conf_scores,
+                        [1, self.anchors_per_img], name='pred_confidence_score')
+            # # normalize the conf scores to lay between 0 and 1:
+            pred_conf_scores = tf.sigmoid(pred_conf_scores)
+            self.pred_conf_scores = pred_conf_scores
 
-        # get all predicted bbox deltas (the four numbers that describe how to
-        # transform an anchor bbox to a predicted bbox):
-        pred_bbox_deltas = preds[:, :, :, no_of_class_probs + no_of_conf_scores:]
-        pred_bbox_deltas = tf.reshape(pred_bbox_deltas,
-                    [self.batch_size, self.anchors_per_img, 4])
-        self.pred_bbox_deltas = pred_bbox_deltas
+            # get all predicted bbox deltas (the four numbers that describe how to
+            # transform an anchor bbox to a predicted bbox):
+            pred_bbox_deltas = preds[:, :, :, no_of_class_probs + no_of_conf_scores:]
+            if self.load_pretrained_model:
+                pred_bbox_deltas = tf.reshape(pred_bbox_deltas,
+                            [self.batch_size, self.anchors_per_img, 4], name='bbox_delta')
+            else:
+                pred_bbox_deltas = tf.reshape(pred_bbox_deltas,
+                            [1, self.anchors_per_img, 4], name='bbox_delta')
+            self.pred_bbox_deltas = pred_bbox_deltas
 
-        # compute the total number of ground truth objects in the batch (used to
-        # normalize the bbox and classification losses):
-        self.no_of_gt_objects = tf.reduce_sum(self.mask_ph)
+            # compute the total number of ground truth objects in the batch (used to
+            # normalize the bbox and classification losses):
+            self.no_of_gt_objects = tf.reduce_sum(self.mask_ph, name='num_objects')
 
-        # transform the anchor bboxes to predicted bboxes using the predicted
-        # bbox deltas:
-        delta_x, delta_y, delta_w, delta_h = tf.unstack(self.pred_bbox_deltas, axis=2)
-        # # (delta_x has shape [batch_size, anchors_per_img])
-        anchor_x = self.anchor_bboxes[:, 0]
-        anchor_y = self.anchor_bboxes[:, 1]
-        anchor_w = self.anchor_bboxes[:, 2]
-        anchor_h = self.anchor_bboxes[:, 3]
-        # # transformation according to eq. (1) in the paper:
-        bbox_center_x = anchor_x + anchor_w*delta_x
-        bbox_center_y = anchor_y + anchor_h*delta_y
-        bbox_width = anchor_w*safe_exp(delta_w, self.exp_thresh)
-        bbox_height = anchor_h*safe_exp(delta_h, self.exp_thresh)
-        # # trim the predicted bboxes so that they stay within the image:
-        # # # get the max and min x and y coordinates for each predicted bbox
-        # # # from the predicted center coordinates and height/width (these
-        # # # might lay outside of the image (e.g. be negative or larger than
-        # # # the img width)):
-        xmin, ymin, xmax, ymax = bbox_transform([bbox_center_x, bbox_center_y,
-                    bbox_width, bbox_height])
-        # # # limit xmin to be in [0, img_width - 1]:
-        xmin = tf.minimum(tf.maximum(0.0, xmin), self.img_width - 1.0)
-        # # # limit ymin to be in [0, img_height - 1]:
-        ymin = tf.minimum(tf.maximum(0.0, ymin), self.img_height - 1.0)
-        # # # limit xmax to be in [0, img_width - 1]:
-        xmax = tf.maximum(tf.minimum(self.img_width - 1.0, xmax), 0.0)
-        # # # limit ymax to be in [0, img_height - 1]:
-        ymax = tf.maximum(tf.minimum(self.img_height - 1.0, ymax), 0.0)
-        # # # transform the trimmed bboxes back to center/width/height format:
-        cx, cy, w, h = bbox_transform_inv([xmin, ymin, xmax, ymax])
-        self.pred_bboxes = tf.transpose(tf.stack([cx, cy, w, h]), (1, 2, 0))
+        with tf.variable_scope("BBox") as scope:
+            # transform the anchor bboxes to predicted bboxes using the predicted
+            # bbox deltas:
+            delta_x, delta_y, delta_w, delta_h = tf.unstack(self.pred_bbox_deltas, axis=2)
+            # # (delta_x has shape [batch_size, anchors_per_img])
+            anchor_x = self.anchor_bboxes[:, 0]
+            anchor_y = self.anchor_bboxes[:, 1]
+            anchor_w = self.anchor_bboxes[:, 2]
+            anchor_h = self.anchor_bboxes[:, 3]
+            # # transformation according to eq. (1) in the paper:
+            bbox_center_x = anchor_x + anchor_w*delta_x
+            bbox_center_y = anchor_y + anchor_h*delta_y
+            bbox_width = anchor_w*safe_exp(delta_w, self.exp_thresh)
+            bbox_height = anchor_h*safe_exp(delta_h, self.exp_thresh)
 
-        # compute the IOU between predicted and ground truth bboxes:
-        pred_bboxes = bbox_transform(tf.unstack(self.pred_bboxes, axis=2))
-        gt_bboxes = bbox_transform(tf.unstack(self.gt_bboxes_ph, axis=2))
-        IOU = self.tensor_IOU(pred_bboxes, gt_bboxes)
-        mask = tf.reshape(self.mask_ph, [self.batch_size, self.anchors_per_img])
-        masked_IOU = IOU*mask
-        self.IOUs = masked_IOU
+            # # trim the predicted bboxes so that they stay within the image:
+            # # # get the max and min x and y coordinates for each predicted bbox
+            # # # from the predicted center coordinates and height/width (these
+            # # # might lay outside of the image (e.g. be negative or larger than
+            # # # the img width)):
+            xmin, ymin, xmax, ymax = bbox_transform([bbox_center_x, bbox_center_y,
+                        bbox_width, bbox_height])
+            # # # limit xmin to be in [0, img_width - 1]:
+            xmin = tf.minimum(tf.maximum(0.0, xmin), self.img_width - 1.0)
+            # # # limit ymin to be in [0, img_height - 1]:
+            ymin = tf.minimum(tf.maximum(0.0, ymin), self.img_height - 1.0)
+            # # # limit xmax to be in [0, img_width - 1]:
+            xmax = tf.maximum(tf.minimum(self.img_width - 1.0, xmax), 0.0)
+            # # # limit ymax to be in [0, img_height - 1]:
+            ymax = tf.maximum(tf.minimum(self.img_height - 1.0, ymax), 0.0)
+            # # # transform the trimmed bboxes back to center/width/height format:
+            cx, cy, w, h = bbox_transform_inv([xmin, ymin, xmax, ymax])
+            self.pred_bboxes = tf.transpose(tf.stack([cx, cy, w, h]), (1, 2, 0))
+
+        with tf.variable_scope("IOU") as scope:
+            def tensor_IOU(box1, box2):
+                # intersection:
+                with tf.variable_scope('intersection'):
+                    xmin = tf.maximum(box1[0], box2[0], name='xmin')
+                    ymin = tf.maximum(box1[1], box2[1], name='ymin')
+                    xmax = tf.minimum(box1[2], box2[2], name='xmax')
+                    ymax = tf.minimum(box1[3], box2[3], name='ymax')
+
+                    w = tf.maximum(0.0, xmax-xmin, name='inter_w')
+                    h = tf.maximum(0.0, ymax-ymin, name='inter_h')
+                    intersection = tf.multiply(w, h, name='intersection')
+
+                # union:
+                with tf.variable_scope('union'):
+                    w1 = tf.subtract(box1[2], box1[0], name='w1')
+                    h1 = tf.subtract(box1[3], box1[1], name='h1')
+                    w2 = tf.subtract(box2[2], box2[0], name='w2')
+                    h2 = tf.subtract(box2[3], box2[1], name='h2')
+
+                    union = w1*h1 + w2*h2 - intersection
+
+                IOU = intersection/(union + self.epsilon)
+                # # (don't think self.epsilon is actually needed here)
+
+                return IOU
+            # compute the IOU between predicted and ground truth bboxes:
+            pred_bboxes = bbox_transform(tf.unstack(self.pred_bboxes, axis=2))
+            gt_bboxes = bbox_transform(tf.unstack(self.gt_bboxes_ph, axis=2))
+            IOU = tensor_IOU(pred_bboxes, gt_bboxes)
+
+            mask = tf.reshape(self.mask_ph, [self.batch_size, self.anchors_per_img])
+            masked_IOU = IOU*mask
+            self.IOUs = masked_IOU
 
         # compute Pr(class) = Pr(class | object)*Pr(object):
-        probs = self.pred_class_probs*tf.reshape(self.pred_conf_scores,
-                    [self.batch_size, self.anchors_per_img, 1])
-        # for each predicted bbox, compute what object class it most likely
-        # contains according to the model output:
-        self.detection_classes = tf.argmax(probs, 2)
-        # for each predicted bbox, compute the predicted probability that it
-        # actually contains this most likely object class:
-        self.detection_probs = tf.reduce_max(probs, 2)
+
+        with tf.name_scope("Probability"):
+            probs = self.pred_class_probs*tf.reshape(self.pred_conf_scores,
+                    [self.batch_size, self.anchors_per_img, 1], name='final_class_prob')
+
+            # for each predicted bbox, compute the predicted probability that it
+            # actually contains this most likely object class:
+            self.detection_probs = tf.reduce_max(probs, 2, name='score')
+            # for each predicted bbox, compute what object class it most likely
+            # contains according to the model output:
+            self.detection_classes = tf.argmax(probs, 2, name='class_idx')
+
         # # (self.detection_probs and self.detection_classes have shape
         # # [batch_size, anchors_per_img])
 
     def add_loss_op(self):
         # compute the class cross-entropy loss (adds a small value to log to
         # prevent it from blowing up):
-        class_loss = (self.class_labels_ph*(-tf.log(self.pred_class_probs + self.epsilon)) +
-                    (1 - self.class_labels_ph)*(-tf.log(1 - self.pred_class_probs + self.epsilon)))
-        class_loss = self.loss_coeff_class*self.mask_ph*class_loss
-        class_loss = tf.reduce_sum(class_loss)
-        # # normalize the class loss (tf.truediv is used to ensure that we get
-        # # no integer divison):
-        class_loss = tf.truediv(class_loss, self.no_of_gt_objects)
-        self.class_loss = class_loss
-        tf.add_to_collection("losses", self.class_loss)
+        with tf.variable_scope('class_regression') as scope:
+            class_loss = (self.class_labels_ph*(-tf.log(self.pred_class_probs + self.epsilon)) +
+                        (1 - self.class_labels_ph)*(-tf.log(1 - self.pred_class_probs + self.epsilon)))
+            class_loss = self.loss_coeff_class*self.mask_ph*class_loss
+            class_loss = tf.reduce_sum(class_loss, name="sum_class_loss")
+            # # normalize the class loss (tf.truediv is used to ensure that we get
+            # # no integer divison):
+            class_loss = tf.truediv(class_loss, self.no_of_gt_objects, name="class_loss")
+            self.class_loss = class_loss
+            tf.add_to_collection("losses", self.class_loss)
+
 
         # compute the confidence score regression loss (this doesn't look like
         # the conf loss in the paper, but they are actually equivalent since
         # self.IOUs is masked as well):
-        input_mask = tf.reshape(self.mask_ph, [self.batch_size,
-                    self.anchors_per_img])
-        conf_loss_per_img = (tf.square(self.IOUs - self.pred_conf_scores)*
-                    (input_mask*self.loss_coeff_conf_pos/self.no_of_gt_objects +
-                    (1 - input_mask)*self.loss_coeff_conf_neg/(self.anchors_per_img - self.no_of_gt_objects)))
-        conf_loss_per_img = tf.reduce_sum(conf_loss_per_img, reduction_indices=[1])
-        conf_loss = tf.reduce_mean(conf_loss_per_img)
-        self.conf_loss = conf_loss
-        tf.add_to_collection("losses", self.conf_loss)
+        with tf.variable_scope('ConfidenceScoreRegression') as scope:
+            input_mask = tf.reshape(self.mask_ph, [self.batch_size,
+                        self.anchors_per_img])
+
+            self.conf_loss = tf.reduce_mean(
+                  tf.reduce_sum(
+                      tf.square((self.IOUs - self.pred_conf_scores))
+                      * (input_mask*self.loss_coeff_conf_pos/self.no_of_gt_objects
+                         +(1-input_mask)*self.loss_coeff_conf_neg/(self.anchors_per_img - self.no_of_gt_objects)),
+                      reduction_indices=[1]
+                  ),
+                  name='confidence_loss'
+              )
+            tf.add_to_collection('losses', self.conf_loss)
+            tf.summary.scalar('mean iou', tf.reduce_sum(self.IOUs)/self.no_of_gt_objects)
+        # # (not sure if we're actually supposed to use reduce_mean in this loss,
         # # (not sure if we're actually supposed to use reduce_mean in this loss,
         # # if so I feel like we should divide with the number of gt objects per
         # # img instead. Think this might be why self.loss_coeff_conf_pos/neg is
         # # so much larger than the other coefficients)
 
         # compute the bbox regression loss:
-        bbox_loss = self.mask_ph*(self.pred_bbox_deltas - self.gt_deltas_ph)
-        bbox_loss = self.loss_coeff_bbox*tf.square(bbox_loss)
-        bbox_loss = tf.reduce_sum(bbox_loss)
-        bbox_loss = tf.truediv(bbox_loss, self.no_of_gt_objects)
-        self.bbox_loss = bbox_loss
-        tf.add_to_collection("losses", self.bbox_loss)
+        with tf.variable_scope('BBoxRegression') as scope:
+            bbox_loss = self.mask_ph*(self.pred_bbox_deltas - self.gt_deltas_ph)
+            bbox_loss = self.loss_coeff_bbox*tf.square(bbox_loss)
+            bbox_loss = tf.reduce_sum(bbox_loss)
+            bbox_loss = tf.truediv(bbox_loss, self.no_of_gt_objects, name='bbox_loss')
+            self.bbox_loss = bbox_loss
+            tf.add_to_collection("losses", self.bbox_loss)
 
         # compute the total loss by summing the above losses and all variable
         # weight decay losses:
@@ -334,18 +390,25 @@ class SqueezeDet_model(object):
     def add_train_op(self):
         # create an optimizer:
         global_step = tf.Variable(0, name="global_step", trainable=False)
+
         lr = tf.train.exponential_decay(learning_rate=self.initial_lr,
-                    global_step=global_step, decay_steps=self.decay_steps,
-                    decay_rate=self.lr_decay_rate, staircase=True)
+                        global_step=global_step, decay_steps=self.decay_steps,
+                        decay_rate=self.lr_decay_rate, staircase=True)
+
         optimizer = tf.train.MomentumOptimizer(learning_rate=lr, momentum=self.momentum)
 
-        # perform maximum clipping of the gradients:
         grads_and_vars = optimizer.compute_gradients(self.loss, tf.trainable_variables())
-        for i, (grad, var) in enumerate(grads_and_vars):
-            grads_and_vars[i] = (tf.clip_by_norm(grad, self.max_grad_norm), var)
+
+        # perform maximum clipping of the gradients:
+        with tf.name_scope("clip_gradient"):
+            for i, (grad, var) in enumerate(grads_and_vars):
+                grads_and_vars[i] = (tf.clip_by_norm(grad, self.max_grad_norm), var)
 
         # create the train op (global_step will automatically be incremented):
-        self.train_op = optimizer.apply_gradients(grads_and_vars, global_step=global_step)
+        apply_gradient_op = optimizer.apply_gradients(grads_and_vars, global_step=global_step)
+
+        with tf.control_dependencies([apply_gradient_op]):
+            self.train_op = tf.no_op(name='train')
 
     def fire_layer(self, layer_name, input, s1x1, e1x1, e3x3, stddev=0.01, freeze=False):
         # (NOTE! the layer names ("/squeeze1x1" etc.) below must match the
@@ -361,36 +424,37 @@ class SqueezeDet_model(object):
         ex3x3 = self.conv_layer(layer_name + "/expand3x3", sq1x1, filters=e3x3,
                     size=3, stride=1, padding="SAME", stddev=stddev, freeze=freeze)
 
-        return tf.concat([ex1x1, ex3x3], 3)
+        return tf.concat([ex1x1, ex3x3], 3, name=layer_name+'/concat')
 
     def conv_layer(self, layer_name, input, filters, size, stride, padding="SAME",
                    freeze=False, xavier=False, relu=True, stddev=0.001):
-        channels = input.get_shape().as_list()[3]
-
-        use_pretrained_params = False
-        if self.load_pretrained_model:
-            # get the pretrained parameter values if possible:
-            cw = self.caffemodel_weights    #type is a dict
-
-            #for key, value in cw.items() :
-                #print(key)
-
-            if layer_name in cw:
-                # re-order the caffe kernel with shape [filters, channels, h, w]
-                # to a tf kernel with shape [h, w, channels, filters]:
-                kernel_val = np.transpose(cw[layer_name][0], [2,3,1,0])
-                bias_val = cw[layer_name][1]
-                # check the shape:
-                #print("kernel_val: %s compared to %s" %(kernel_val.shape, (size, size, channels, filters)))
-                if kernel_val.shape == (size, size, channels, filters) and (bias_val.shape == (filters, )):
-                    use_pretrained_params = True
-                    print("kernel shape of %s match!, Use the pretrained parameters"% layer_name)
-                else:
-                    print("Shape of the pretrained parameter of %s does not match, use randomly initialized parameter" % layer_name)
-            else:
-                print("Cannot find %s in the pretrained model. Use randomly initialized parameters" % layer_name)
-
         with tf.variable_scope(layer_name) as scope:
+            channels = input.get_shape().as_list()[3]
+
+            use_pretrained_params = False
+            if self.load_pretrained_model:
+                # get the pretrained parameter values if possible:
+                cw = self.caffemodel_weights    #type is a dict
+
+                #for key, value in cw.items() :
+                    #print(key)
+
+                if layer_name in cw:
+                    # re-order the caffe kernel with shape [filters, channels, h, w]
+                    # to a tf kernel with shape [h, w, channels, filters]:
+                    kernel_val = np.transpose(cw[layer_name][0], [2,3,1,0])
+                    bias_val = cw[layer_name][1]
+                    # check the shape:
+                    #print("kernel_val: %s compared to %s" %(kernel_val.shape, (size, size, channels, filters)))
+                    if kernel_val.shape == (size, size, channels, filters) and (bias_val.shape == (filters, )):
+                        use_pretrained_params = True
+                        print("kernel shape of %s match!, Use the pretrained parameters"% layer_name)
+                    else:
+                        print("Shape of the pretrained parameter of %s does not match, use randomly initialized parameter" % layer_name)
+                else:
+                    print("Cannot find %s in the pretrained model. Use randomly initialized parameters" % layer_name)
+
+
             # create the parameter initializers:
             if use_pretrained_params:
                 print("Using pretrained init for " + layer_name)
@@ -418,18 +482,20 @@ class SqueezeDet_model(object):
 
             # convolution:
             conv = tf.nn.conv2d(input, kernel, strides=[1, stride, stride, 1],
-                        padding=padding) + biases
+                        padding=padding, name='convolution')
+            conv_bias = tf.nn.bias_add(conv, biases, name='bias_add')
 
             # apply ReLu if supposed to:
             if relu:
-                out = tf.nn.relu(conv)
+                out = tf.nn.relu(conv_bias, "relu")
             else:
-                out = conv
+                out = conv_bias
 
             return out
 
     def pooling_layer(self, input, size, stride, padding="SAME"):
-        out = tf.nn.max_pool(input, ksize=[1, size, size, 1],
+        with tf.name_scope("Pooling"):
+            out = tf.nn.max_pool(input, ksize=[1, size, size, 1],
                     strides=[1, stride, stride, 1], padding=padding)
 
         return out
@@ -495,27 +561,6 @@ class SqueezeDet_model(object):
 
         return var
 
-    def tensor_IOU(self, box1, box2):
-        # intersection:
-        xmin = tf.maximum(box1[0], box2[0])
-        ymin = tf.maximum(box1[1], box2[1])
-        xmax = tf.minimum(box1[2], box2[2])
-        ymax = tf.minimum(box1[3], box2[3])
-        w = tf.maximum(0.0, xmax - xmin)
-        h = tf.maximum(0.0, ymax - ymin)
-        intersection_area = w*h
-
-        # union:
-        w1 = box1[2] - box1[0]
-        h1 = box1[3] - box1[1]
-        w2 = box2[2] - box2[0]
-        h2 = box2[3] - box2[1]
-        union_area = w1*h1 + w2*h2 - intersection_area
-
-        IOU = intersection_area/(union_area + self.epsilon)
-        # # (don't think self.epsilon is actually needed here)
-
-        return IOU
 
     def set_anchors(self):
         # NOTE! this function is taken directly from
