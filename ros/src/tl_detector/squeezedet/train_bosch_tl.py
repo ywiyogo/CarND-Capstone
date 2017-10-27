@@ -52,7 +52,7 @@ for path, boxes in train_data_dict.items():
     train_bboxes_per_img.append(boxes)
 
 no_of_imgs = len(train_data_dict)
-# select 90 % of the imgs as train data
+# select 80 % of the imgs as train data
 tratio = 0.9
 vratio = 1 - tratio
 
@@ -71,7 +71,7 @@ print("number of train imgs: %d " % len(train_data))
 no_of_train_imgs = len(train_data)
 no_of_val_imgs = len(val_data)
 
-no_of_batches = 260 #int(no_of_train_imgs/batch_size)
+no_of_batches = 200 #int(no_of_train_imgs/batch_size)
 no_of_val_batches = int(no_of_val_imgs/batch_size)
 no_of_epochs = 10
 
@@ -574,37 +574,36 @@ with tf.Session() as sess:
                     % model.model_dir, "wb"))
         print("bbox epoch loss: %g" % bbox_epoch_loss)
 
-        if epoch == int(no_of_epochs/2)-1 or epoch == (no_of_epochs-1):
-            # run the model on the validation data:
-            val_loss = evaluate_on_val()
+        # run the model on the validation data:
+        val_loss = evaluate_on_val()
 
-            # save the val epoch loss:
-            val_loss_per_epoch.append(val_loss)
-            # save the val epoch losses to disk:
-            pickle.dump(val_loss_per_epoch, open("%sval_loss_per_epoch.pkl"\
-                        % model.model_dir, "wb"))
-            print("validation loss: %g" % val_loss)
+        # save the val epoch loss:
+        val_loss_per_epoch.append(val_loss)
+        # save the val epoch losses to disk:
+        pickle.dump(val_loss_per_epoch, open("%sval_loss_per_epoch.pkl"\
+                    % model.model_dir, "wb"))
+        print("validation loss: %g" % val_loss)
 
-            #if val_loss < max(best_epoch_losses): # (if top 5 performance on val:)
-                # save the model weights to disk:
+        if (epoch+1)%2 == 0 or epoch == no_of_epochs-1: # (if top 5 performance on val:)
+            # save the model weights to disk:
             checkpoint_path = (model.checkpoints_dir + "model_" +
                         model.model_id + "_epoch_" + str(epoch + 1) + ".ckpt")
             saver.save(sess, checkpoint_path)
             print("checkpoint saved in file: %s" % checkpoint_path)
 
-            # update the top 5 val losses:
-            index = best_epoch_losses.index(max(best_epoch_losses))
-            best_epoch_losses[index] = val_loss
+        # update the top 5 val losses:
+        index = best_epoch_losses.index(max(best_epoch_losses))
+        best_epoch_losses[index] = val_loss
 
-            #plot the val loss vs epoch and save to disk:
-            plt.figure(1)
-            plt.plot(val_loss_per_epoch, "k^")
-            plt.plot(val_loss_per_epoch, "k")
-            plt.ylabel("loss")
-            plt.xlabel("epoch")
-            plt.title("validation loss per epoch")
-            plt.savefig("%sval_loss_per_epoch.png" % model.model_dir)
-            plt.close(1)
+        #plot the val loss vs epoch and save to disk:
+        plt.figure(1)
+        plt.plot(val_loss_per_epoch, "k^")
+        plt.plot(val_loss_per_epoch, "k")
+        plt.ylabel("loss")
+        plt.xlabel("epoch")
+        plt.title("validation loss per epoch")
+        plt.savefig("%sval_loss_per_epoch.png" % model.model_dir)
+        plt.close(1)
 
         # plot the training loss vs epoch and save to disk:
         plt.figure(1)

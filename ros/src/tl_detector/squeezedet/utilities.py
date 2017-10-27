@@ -5,6 +5,7 @@ import cv2
 import numpy as np
 import tensorflow as tf
 
+# Visualization with box format cx, cy, w, h, label
 def vis_gt_bboxes(img_path, bboxes):
     class_label_to_string = {0: "Red", 1: "Yellow", 2: "Green", 3: "Off"}
     class_to_color = {"Red": (0, 0, 255),
@@ -33,6 +34,37 @@ def vis_gt_bboxes(img_path, bboxes):
 
     img_with_bboxes = img
     return img_with_bboxes
+
+def vis_gt_bboxes_fminmax(img_path, bboxes):
+    class_label_to_string = {0: "Red", 1: "Yellow", 2: "Green", 3: "Off"}
+    class_to_color = {"Red": (0, 0, 255),
+                      "Yellow": (0, 255, 255),
+                      "Green": (0,255,0),
+                      "Off": (19, 139,69)}
+    img = cv2.imread(img_path, -1)
+
+    for box in bboxes:
+        print(box)
+        xmin = int(box["x_min"])
+        ymin = int(box["y_min"])
+        xmax = int(box["x_max"])
+        ymax = int(box["y_max"])
+        color=0
+        if "Red" in box["label"]:
+            color=class_to_color["Red"]
+        elif "Yellow" in box["label"]:
+            color=class_to_color["Yellow"]
+        elif "Green" in box["label"]:
+            color=class_to_color["Green"]
+        else:
+            color = class_to_color["Off"]
+        # draw the bbox:
+        cv2.rectangle(img, (xmin, ymin), (xmax , ymax),
+                    color, 2)
+
+    img_with_bboxes = img
+    return img_with_bboxes
+
 
 # function for drawing all ground truth bboxes of an image on the image:
 def visualize_gt_label(img_path, label_path):

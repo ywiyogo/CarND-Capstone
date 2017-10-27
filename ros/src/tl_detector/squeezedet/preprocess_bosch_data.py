@@ -36,20 +36,18 @@ def preprocessing(bosch_data_dir, augmentation=1):
         bboxes=[]
         for box in image_dict['boxes']:
             # YW NOTE: ignore occluded box due to minus value in anchor calculation
-            if not box['occluded']:
-                w = box["x_max"] - box["x_min"]
-                h = box["y_max"] - box["y_min"]
-                if w<0:
-                    print("Warning negative value of width %f, %s" % (w,image_dict['path']))
-                    w=abs(w)
-                if h < 0:
-                    print("Warning negative value of height %f, %s"% (h,image_dict['path']))
-                    h=abs(h)
-                cx = box["x_min"] + w/2
-                cy = box["y_min"] + h/2
-                bboxes.append([cx, cy, w,h, box['label']])
-            else:
-                print("Note: ignored occluded box in ", image_dict['path'])
+            w = box["x_max"] - box["x_min"]
+            h = box["y_max"] - box["y_min"]
+            if w<0:
+                print("Warning negative value of width %f, %s" % (w,image_dict['path']))
+                w=abs(w)
+            if h < 0:
+                print("Warning negative value of height %f, %s"% (h,image_dict['path']))
+                h=abs(h)
+            cx = box["x_min"] + w/2
+            cy = box["y_min"] + h/2
+            bboxes.append([cx, cy, w,h, box['label']])
+
         train_data_dict[image_dict['path']]=bboxes
         train_img_paths.append(image_dict['path'])
         train_img_boxes.append(bboxes)
