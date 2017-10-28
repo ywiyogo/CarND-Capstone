@@ -29,31 +29,33 @@ class TLDetector(object):
         #TODO load classifier
         pass
 
-        print('--------------- Loading classifier --------------')
+        print('--------------- Loading TF Graph --------------')
         print
         self.graph = tf.get_default_graph()
 
-        with tf.Session() as self.sess:
+        model_id = 2
+        self.model = SqueezeDet_model(model_id, pretrained_model_path=None, testmode=True)
+        print("Batch size: ", self.model.batch_size)
+
+        self.saver = tf.train.Saver(self.model.model_params)
+
+        self.sess = tf.Session(config=tf.ConfigProto())
         #http://cv-tricks.com/tensorflow-tutorial/save-restore-tensorflow-models-quick-complete-tutorial/
         # Load the meta graph and restore weights
-            self.saver = tf.train.import_meta_graph(CKPT_DIR + 'model_1_epoch_3.ckpt.meta')
 
-            print('---------------- Loading complete ---------------')
-            model_id = 2
-            self.model = SqueezeDet_model(model_id, PRETRAINED_MODEL_11, testmode=True)
+        print('---------------- Loading Checkpoint model ---------------')
 
-            self.model.batch_size = 1
-            self.img_height = self.model.img_height
-            self.img_width = self.model.img_width
-            self.no_of_classes = self.model.no_of_classes
+        self.saver.restore(self.sess, CKPT_DIR + 'model_1_epoch_4.ckpt')
 
+        with open(DATASET_DIR+"bosch_mean_channels.pkl", "rb") as f:
+            self.train_mean_channels = pickle.load(f, encoding='bytes')
 
     def calc_softmax(self, x):
         """Compute softmax values for each sets of scores in x."""
         return np.exp(x)/np.sum(np.exp(x), axis=0)
 
     def resize_image(self, image):
-        image = cv2.resize(image, (self.img_width, self.img_height), interpolation = cv2.INTER_LINEAR)
+        image = cv2.resize(image, (self.model.img_width, self.model.img_height), interpolation = cv2.INTER_LINEAR)
         return image
 
     def get_classification(self, image_path, debug=1):
@@ -70,11 +72,6 @@ class TLDetector(object):
 
         image = cv2.imread(image_path);
 
-        init = tf.global_variables_initializer()
-        self.sess.run(init)
-
-        self.saver.restore(self.sess, tf.train.latest_checkpoint(CKPT_DIR))
-
         #print("graph: ",self.graph.get_operations())
         #print("self.saver: ", self.saver)
 
@@ -82,42 +79,35 @@ class TLDetector(object):
         if image is None:
             print("Error: image is None!")
             return
-        resized_img = self.resize_image(image)
+        image = image.astype(np.float32, copy=False)
+        resized_img = cv2.resize(image, (self.model.img_width, self.model.img_height))
 
         if DEBUG:
             print("resized shape: ", resized_img.shape)
 
-
-
-        # load the mean color channels of the train imgs:
-
-        with open(DATASET_DIR+"bosch_mean_channels.pkl", "rb") as f:
-            train_mean_channels = pickle.load(f, encoding='bytes')
         #preproc_img = helper.preprocess(resized_img, mean_pixel)
-        expanded_img = np.expand_dims(resized_img, axis=0) - train_mean_channels
-        if DEBUG:
-            print('--------------- Getting classification --------------')
+        expanded_img = np.expand_dims(resized_img, axis=0) - self.train_mean_channels
 
+        #relu_op = self.graph.get_tensor_by_name('InterpretOutput/pred_confidence_score:0')
         summary_writer = tf.summary.FileWriter(LOG_DIR, graph=self.sess.graph)
         # Placeholders
-
+        print("model input placholder: ", self.model.image_input)
+        print("input: ", expanded_img.shape)
 
         # Run prediction
-        pred_bboxes, detection_classes, detection_probs  = self.sess.run([self.model.pred_bboxes,
-                    self.model.detection_classes, self.model.detection_probs],
-                    feed_dict={self.model.imgs_ph:expanded_img,
-                               self.model.keep_prob_ph: 1.0})
+        #a = self.sess.run(relu_op,feed_dict={"imgs_ph:0":expanded_img,
+        #                                     "keep_prob_ph:0": 1.})
+        # Detect
+        det_boxes, det_probs, det_class = self.sess.run(
+            [self.model.pred_bboxes, self.model.detection_probs, self.model.detection_classes],
+            feed_dict={self.model.image_input:expanded_img,
+                       self.model.keep_prob_ph: 1.0})
+        self.sess.close()
+
 
         # Filter low prediction
         final_bboxes, final_probs, final_classes = self.model.filter_prediction(
-                    pred_bboxes[0], detection_probs[0], detection_classes[0])
-
-        print("Final boxes: ", final_probs)
-        keep_idx = [idx for idx in range(len(final_probs)) if final_probs[idx] > 0]#plot_prob_thresh
-        final_bboxes = [final_bboxes[idx] for idx in keep_idx]
-        print("Final boxes: ", final_bboxes)
-        final_probs = [final_probs[idx] for idx in keep_idx]
-        final_classes = [final_classes[idx] for idx in keep_idx]
+                    det_boxes[0], det_probs[0], det_class[0])
 
         # draw the bboxes outputed by the model:
         pred_img = draw_bboxes(resized_img, final_bboxes, final_classes, final_probs)
