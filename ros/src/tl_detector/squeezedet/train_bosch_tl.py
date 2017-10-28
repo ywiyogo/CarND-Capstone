@@ -14,7 +14,7 @@ import yaml
 import sys
 from model import SqueezeDet_model
 
-from utilities import sparse_to_dense, batch_IOU, draw_bboxes
+from utilities import sparse_to_dense, batch_IOU, draw_bboxes, vis_gt_bboxes
 
 if not len(sys.argv) == 2:
     print("Usage: python train_bosch_tl.py <dataset_dir_path>")
@@ -36,7 +36,7 @@ model = SqueezeDet_model(model_id, PRETRAINED_MODEL_11)
 batch_size = model.batch_size
 img_height = model.img_height
 img_width = model.img_width
-no_of_classes = model.no_of_classes
+num_classes = model.num_classes
 
 # load the mean color channels of the train imgs:
 #train_mean_channels = pickle.load(open("data/mean_channels.pkl"))
@@ -71,9 +71,17 @@ print("number of train imgs: %d " % len(train_data))
 no_of_train_imgs = len(train_data)
 no_of_val_imgs = len(val_data)
 
-no_of_batches = 200 #int(no_of_train_imgs/batch_size)
+no_of_batches = 100 #int(no_of_train_imgs/batch_size)
 no_of_val_batches = int(no_of_val_imgs/batch_size)
 no_of_epochs = 10
+
+#val_img_paths, val_bboxes_per_img = zip(*val_data)
+# for step, val_img_path in enumerate(val_img_paths):
+#     if step%4==0:
+#         path = os.path.join(bosch_data_dir, val_img_path)
+#         img = vis_gt_bboxes(path, val_bboxes_per_img[step])
+#         cv2.imshow("img", img)
+#         cv2.waitKey(0)
 
 
 def evaluate_on_val():
@@ -236,7 +244,7 @@ def evaluate_on_val():
                     [batch_size, model.anchors_per_img, 4], gt_bbox_values)
 
         batch_class_labels = sparse_to_dense(class_label_indices,
-                    [batch_size, model.anchors_per_img, no_of_classes],
+                    [batch_size, model.anchors_per_img, num_classes],
                     [1.0]*len(class_label_indices))
 
         batch_pointer += batch_size
@@ -475,7 +483,7 @@ def train_data_iterator():
                     [batch_size, model.anchors_per_img, 4], gt_bbox_values)
 
         batch_class_labels = sparse_to_dense(class_label_indices,
-                    [batch_size, model.anchors_per_img, no_of_classes],
+                    [batch_size, model.anchors_per_img, num_classes],
                     [1.0]*len(class_label_indices))
 
         batch_pointer += batch_size
