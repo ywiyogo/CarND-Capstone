@@ -121,7 +121,8 @@ def augment_train_data(bosch_data_dir, bosch_data, train_data_dict):
             # Note: img_path is a relative path!
             img = cv2.imread(os.path.join(bosch_data_dir,img_path), -1)
             assert not img is None
-
+            # get the image height and width
+            height, width, channels = img.shape
             # flip the img and save to project_dir/data:
             img_flipped = cv2.flip(img, 1)
             img_flipped_path =  img_path.split(".png")[0] + "_flipped.png"
@@ -142,8 +143,8 @@ def augment_train_data(bosch_data_dir, bosch_data, train_data_dict):
                     x_left = box["x_min"]
                     x_right = box["x_max"]
 
-                    x_right_flipped = img_width/2 - (x_left -img_width/2)
-                    x_left_flipped = img_width/2 - (x_right -img_width/2)
+                    x_right_flipped = width/2 - (x_left -width/2)
+                    x_left_flipped = width/2 - (x_right -width/2)
                     w = x_right_flipped - x_left_flipped
                     h = box["y_max"] - box["y_min"]
 

@@ -35,7 +35,6 @@ class TLDetector(object):
 
         model_id = 2
         self.model = SqueezeDet_model(model_id, pretrained_model_path=None, testmode=True)
-        print("Batch size: ", self.model.batch_size)
 
         self.saver = tf.train.Saver(self.model.model_params)
 
@@ -45,7 +44,7 @@ class TLDetector(object):
 
         print('---------------- Loading Checkpoint model ---------------')
 
-        self.saver.restore(self.sess, CKPT_DIR + 'model_1_epoch_4.ckpt')
+        self.saver.restore(self.sess, CKPT_DIR + 'model_1_epoch_6.ckpt')
 
         with open(DATASET_DIR+"bosch_mean_channels.pkl", "rb") as f:
             self.train_mean_channels = pickle.load(f, encoding='bytes')
@@ -54,9 +53,6 @@ class TLDetector(object):
         """Compute softmax values for each sets of scores in x."""
         return np.exp(x)/np.sum(np.exp(x), axis=0)
 
-    def resize_image(self, image):
-        image = cv2.resize(image, (self.model.img_width, self.model.img_height), interpolation = cv2.INTER_LINEAR)
-        return image
 
     def get_classification(self, image_path, debug=1):
         """Determines the color of the traffic light in the image
@@ -91,7 +87,7 @@ class TLDetector(object):
         #relu_op = self.graph.get_tensor_by_name('InterpretOutput/pred_confidence_score:0')
         summary_writer = tf.summary.FileWriter(LOG_DIR, graph=self.sess.graph)
         # Placeholders
-        print("model input placholder: ", self.model.image_input)
+        print("model input placholder: ", self.model.image_input_ph)
         print("input: ", expanded_img.shape)
 
         # Run prediction
@@ -100,7 +96,7 @@ class TLDetector(object):
         # Detect
         det_boxes, det_probs, det_class = self.sess.run(
             [self.model.pred_bboxes, self.model.detection_probs, self.model.detection_classes],
-            feed_dict={self.model.image_input:expanded_img,
+            feed_dict={self.model.image_input_ph:expanded_img,
                        self.model.keep_prob_ph: 1.0})
         self.sess.close()
 
@@ -130,7 +126,6 @@ def main(img_path):
             print("test1")
             tlc.get_classification(img_file, 0)
     else:
-        print("test2")
         tlc.get_classification(img_path)
 
 if __name__ == '__main__':

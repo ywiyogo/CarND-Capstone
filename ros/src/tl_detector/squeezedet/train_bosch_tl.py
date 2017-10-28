@@ -71,7 +71,7 @@ print("number of train imgs: %d " % len(train_data))
 no_of_train_imgs = len(train_data)
 no_of_val_imgs = len(val_data)
 
-no_of_batches = 100 #int(no_of_train_imgs/batch_size)
+no_of_batches = 50 #int(no_of_train_imgs/batch_size)
 no_of_val_batches = int(no_of_val_imgs/batch_size)
 no_of_epochs = 10
 
@@ -136,6 +136,8 @@ def evaluate_on_val():
 
                 elif 'Green' in box[4]:
                     img_class_labels.append(2)
+                else :
+                    img_class_labels.append(3)
 
             class_labels_per_img.append(img_class_labels)
 
@@ -272,12 +274,13 @@ def evaluate_on_val():
             final_classes = [final_classes[idx] for idx in keep_idx]
 
             # draw the bboxes that the model would've output in inference:
+            basepath = os.path.basename(img_path)
             pred_img = draw_bboxes(batch_imgs[0].copy()+train_mean_channels,
-                        final_bboxes, final_classes, final_probs)
+                        model.anchor_bboxes, final_classes, final_probs)
             pred_img = cv2.resize(pred_img, (int(0.4*img_width),
                         int(0.4*img_height)))
             pred_path = (model.debug_imgs_dir + "val_" + str(epoch) + "_" +
-                        str(step) + "_pred.png")
+                        str(step) + "_pred"+ basepath+".png")
             cv2.imwrite(pred_path, pred_img)
 
 
@@ -308,7 +311,7 @@ def evaluate_on_val():
 
             gt_img = cv2.resize(gt_img, (int(0.4*img_width), int(0.4*img_height)))
             gt_path = (model.debug_imgs_dir + "val_" + str(epoch) + "_" +
-                        str(step) + "_gt.png")
+                        str(step) + "_gt"+ basepath+ ".png")
             cv2.imwrite(gt_path, gt_img)
 
             # draw the predicted bboxes that are assigned to a ground truth bbox
@@ -321,7 +324,7 @@ def evaluate_on_val():
             pred_assigned_img = cv2.resize(pred_assigned_img,
                         (int(0.4*img_width), int(0.4*img_height)))
             pred_assigned_path = (model.debug_imgs_dir + "val_" + str(epoch) +
-                        "_" + str(step) + "_pred_assigned.png")
+                        "_" + str(step) + "_pred_assigned"+ basepath+".png")
             cv2.imwrite(pred_assigned_path, pred_assigned_img)
 
     val_loss = np.mean(val_batch_losses)
@@ -384,6 +387,8 @@ def train_data_iterator():
 
                 elif 'Green' in box[4]:
                     img_class_labels.append(2)
+                else:
+                    img_class_labels.append(3)
 
             class_labels_per_img.append(img_class_labels)
             img_gt_bboxes = np.array(img_gt_bboxes)
@@ -523,8 +528,10 @@ with tf.Session() as sess:
         batch_losses_conf = []
         batch_losses_bbox = []
 
+
         for step, (imgs, mask, gt_deltas, gt_bboxes, class_labels) in enumerate(train_data_iterator()):
             # create a feed dict containing the batch data:
+
             batch_feed_dict = model.create_feed_dict(imgs, 0.8, mask=mask,
                         gt_deltas=gt_deltas, gt_bboxes=gt_bboxes,
                         class_labels=class_labels)
@@ -532,9 +539,11 @@ with tf.Session() as sess:
             # compute the batch loss and compute & apply all gradients w.r.t to
             # the batch loss (without model.train_op in the call, the network
             # would NOT train, we would only compute the batch loss):
+
             batch_loss, batch_loss_conf, batch_loss_class, batch_loss_bbox, _ = sess.run(
                         [model.loss, model.conf_loss, model.class_loss,
                         model.bbox_loss, model.train_op], feed_dict=batch_feed_dict)
+
             batch_losses.append(batch_loss)
             batch_losses_class.append(batch_loss_class)
             batch_losses_conf.append(batch_loss_conf)

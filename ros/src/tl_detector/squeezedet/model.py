@@ -35,7 +35,7 @@ class SqueezeDet_model(object):
         if testmode:
             self.batch_size = 1
         else:
-            self.batch_size = 16
+            self.batch_size = 24
 
         self.img_height = 720
         self.img_width = 1280
@@ -44,8 +44,8 @@ class SqueezeDet_model(object):
         self.class_string_to_label = {"Red": 0, "Yellow": 1, "Green": 2,
                                       "off": 3}
         # capacity for FIFOQueue
-        self.queue_capacity = 100
-            # model parameters
+        # self.queue_capacity = 2
+        # model parameters
         self.model_params = []
 
         # model size counter
@@ -54,7 +54,7 @@ class SqueezeDet_model(object):
         self.flop_counter = [] # array of tuple of layer name, flop number
 
         # training parameters:
-        self.initial_lr = 0.008
+        self.initial_lr = 0.0001
         self.decay_steps =  1000
         self.lr_decay_rate = 0.1
         self.momentum = 0.9
@@ -122,77 +122,79 @@ class SqueezeDet_model(object):
             os.makedirs(self.debug_imgs_dir)
 
     def add_placeholders(self):
-        self.imgs_ph = tf.placeholder(tf.float32,
-                    shape=[self.batch_size, self.img_height, self.img_width, 3],
-                    name="image_input")
+        with tf.variable_scope('Inputs') as scope:
+            self.image_input_ph = tf.placeholder(tf.float32,
+                        shape=[self.batch_size, self.img_height, self.img_width, 3],
+                        name="image_input")
 
-        self.keep_prob_ph = tf.placeholder(tf.float32, name="keep_prob_ph")
+            self.keep_prob_ph = tf.placeholder(tf.float32, name="keep_prob_ph")
 
-        self.box_mask_ph = tf.placeholder(tf.float32,
-                    shape=[self.batch_size, self.anchors_per_img, 1],
-                    name='box_mask')
-        # # (mask_ph[i, j] == 1 if anchor j is assigned to (i.e., is responsible
-        # # for detecting) a ground truth bbox in batch image i, 0 otherwise)
+            self.box_mask_ph = tf.placeholder(tf.float32,
+                        shape=[self.batch_size, self.anchors_per_img, 1],
+                        name='box_mask')
+            # # (mask_ph[i, j] == 1 if anchor j is assigned to (i.e., is responsible
+            # # for detecting) a ground truth bbox in batch image i, 0 otherwise)
 
-        self.gt_deltas_ph = tf.placeholder(tf.float32,
-                    shape=[self.batch_size, self.anchors_per_img, 4],
-                    name='box_delta_input')
-        # # (if anchor j is assigned to a ground truth bbox in batch image i,
-        # # gt_deltas_ph[i, j] == [delta_x, delta_y, delta_w, delta_h] where the
-        # # deltas transform anchor j into its assigned ground truth bbox via
-        # # eq. (1) in the paper. Otherwise, gt_deltas_ph[i, j] == [0, 0, 0, 0])
+            self.box_delta_input_ph = tf.placeholder(tf.float32,
+                        shape=[self.batch_size, self.anchors_per_img, 4],
+                        name='box_delta_input')
+            # # (if anchor j is assigned to a ground truth bbox in batch image i,
+            # # gt_deltas_ph[i, j] == [delta_x, delta_y, delta_w, delta_h] where the
+            # # deltas transform anchor j into its assigned ground truth bbox via
+            # # eq. (1) in the paper. Otherwise, gt_deltas_ph[i, j] == [0, 0, 0, 0])
 
-        self.gt_bboxes_ph = tf.placeholder(tf.float32,
-                    shape=[self.batch_size, self.anchors_per_img, 4],
-                    name='gt_bbox_input')
-        # # (if anchor j is assigned to a ground truth bbox in batch image i,
-        # # gt_bboxes_ph[i, j] == [center_x, center_y, w, h] of this assigned
-        # # ground truth bbox. Otherwise, gt_bboxes_ph[i, j] == [0, 0, 0, 0])
+            self.gt_boxes_input_ph = tf.placeholder(tf.float32,
+                        shape=[self.batch_size, self.anchors_per_img, 4],
+                        name='gt_bbox_input')
+            # # (if anchor j is assigned to a ground truth bbox in batch image i,
+            # # gt_bboxes_ph[i, j] == [center_x, center_y, w, h] of this assigned
+            # # ground truth bbox. Otherwise, gt_bboxes_ph[i, j] == [0, 0, 0, 0])
 
-        self.class_labels_ph = tf.placeholder(tf.float32,
-                    shape=[self.batch_size, self.anchors_per_img,
-                    self.num_classes], name="class_labels")
-        # # (if anchor j is assigned to a ground truth bbox in batch image i,
-        # # class_labels_ph[i, j] is the onehot encoded class label of this
-        # # assigned ground truth bbox. Otherwise, class_labels_ph[i, j] is all
-        # # zeros)
+            self.class_labels_ph = tf.placeholder(tf.float32,
+                        shape=[self.batch_size, self.anchors_per_img,
+                        self.num_classes], name="class_labels")
+            # # (if anchor j is assigned to a ground truth bbox in batch image i,
+            # # class_labels_ph[i, j] is the onehot encoded class label of this
+            # # assigned ground truth bbox. Otherwise, class_labels_ph[i, j] is all
+            # # zeros)
+
         self.ious = tf.Variable(
             initial_value=np.zeros((self.batch_size, self.anchors_per_img)), trainable=False,
             name='iou', dtype=tf.float32
         )
+            # FIFOQueue and Batch causes an explosion of RAM consuption
+            # self.FIFOQueue = tf.FIFOQueue(
+            #     capacity=self.queue_capacity,
+            #     dtypes=[tf.float32, tf.float32, tf.float32,
+            #             tf.float32, tf.float32],
+            #     shapes=[[self.img_height, self.img_width, 3],
+            #             [self.anchors_per_img, 1],
+            #             [self.anchors_per_img, 4],
+            #             [self.anchors_per_img, 4],
+            #             [self.anchors_per_img, self.num_classes]],
+            # )
 
-        self.FIFOQueue = tf.FIFOQueue(
-            capacity=self.queue_capacity,
-            dtypes=[tf.float32, tf.float32, tf.float32,
-                    tf.float32, tf.float32],
-            shapes=[[self.img_height, self.img_width, 3],
-                    [self.anchors_per_img, 1],
-                    [self.anchors_per_img, 4],
-                    [self.anchors_per_img, 4],
-                    [self.anchors_per_img, self.num_classes]],
-        )
-
-        self.enqueue_op = self.FIFOQueue.enqueue_many(
-            [self.imgs_ph, self.box_mask_ph, self.gt_deltas_ph, self.gt_bboxes_ph, self.class_labels_ph]
-        )
+            # self.enqueue_op = self.FIFOQueue.enqueue_many(
+            #     [self.image_input_ph, self.box_mask_ph, self.box_delta_input_ph, self.gt_boxes_input_ph, self.class_labels_ph]
+            # )
 
         # Variable with values
-        self.image_input, self.box_mask, self.box_delta_input, self.box_input, self.class_labels = tf.train.batch(
-                self.FIFOQueue.dequeue(), batch_size=self.batch_size,
-                capacity=self.queue_capacity)
+        # self.image_input, self.box_mask, self.box_delta_input, self.gt_boxes_input, self.class_labels = tf.train.batch(
+        #         self.FIFOQueue.dequeue(), batch_size=self.batch_size,
+        #         capacity=self.queue_capacity)
 
     def create_feed_dict(self, imgs, keep_prob, mask=None, gt_deltas=None,
                          gt_bboxes=None, class_labels=None):
         # return a feed_dict mapping the placeholders to the actual input data:
         feed_dict = {}
-        feed_dict[self.imgs_ph] = imgs
+        feed_dict[self.image_input_ph] = imgs
         feed_dict[self.keep_prob_ph] = keep_prob
         if mask is not None: # (we have no mask during inference)
             feed_dict[self.box_mask_ph] = mask
         if gt_deltas is not None:
-            feed_dict[self.gt_deltas_ph] = gt_deltas
+            feed_dict[self.box_delta_input_ph] = gt_deltas
         if gt_bboxes is not None:
-            feed_dict[self.gt_bboxes_ph] = gt_bboxes
+            feed_dict[self.gt_boxes_input_ph] = gt_bboxes
         if class_labels is not None:
             feed_dict[self.class_labels_ph] = class_labels
 
@@ -202,7 +204,7 @@ class SqueezeDet_model(object):
         # (NOTE! the layer names ("conv1", "fire2" etc.) below must match
         # the names in the pretrained SqueezeNet model when using this for
         # initialization)
-        conv_1 = self.conv_layer("conv1", self.image_input, filters=64, size=3,
+        conv_1 = self.conv_layer("conv1", self.image_input_ph, filters=64, size=3,
                     stride=2, padding="SAME", freeze=True)
         pool_1 = self.pooling_layer(conv_1, size=3, stride=2, padding="SAME")
 
@@ -226,7 +228,7 @@ class SqueezeDet_model(object):
         # see the paper: K(4+1+C)
         no_of_outputs = self.anchors_per_gridpoint*(self.num_classes + 1 + 4)
 
-        self.preds = self.conv_layer("preds", dropout_11, filters=no_of_outputs,
+        self.preds = self.conv_layer("conv12", dropout_11, filters=no_of_outputs,
                     size=3, stride=1, padding="SAME", relu=False, stddev=0.0001)
 
     def add_processed_output(self):
@@ -259,30 +261,23 @@ class SqueezeDet_model(object):
             no_of_conf_scores = self.anchors_per_gridpoint
             # # get all predicted conf scores:
             pred_conf_scores = preds[:, :, :, no_of_class_probs:no_of_class_probs + no_of_conf_scores]
-            if self.load_pretrained_model:
-                pred_conf_scores = tf.reshape(pred_conf_scores,
-                        [self.batch_size, self.anchors_per_img], name='pred_confidence_score')
-            else:
-                pred_conf_scores = tf.reshape(pred_conf_scores,
-                        [1, self.anchors_per_img], name='pred_confidence_score')
+            pred_conf_scores = tf.reshape(pred_conf_scores,
+                        [self.batch_size, self.anchors_per_img])
             # # normalize the conf scores to lay between 0 and 1:
-            pred_conf_scores = tf.sigmoid(pred_conf_scores)
+            pred_conf_scores = tf.sigmoid(pred_conf_scores, name='pred_confidence_score')
             self.pred_conf_scores = pred_conf_scores
 
             # get all predicted bbox deltas (the four numbers that describe how to
             # transform an anchor bbox to a predicted bbox):
             pred_bbox_deltas = preds[:, :, :, no_of_class_probs + no_of_conf_scores:]
-            if self.load_pretrained_model:
-                pred_bbox_deltas = tf.reshape(pred_bbox_deltas,
+
+            pred_bbox_deltas = tf.reshape(pred_bbox_deltas,
                             [self.batch_size, self.anchors_per_img, 4], name='bbox_delta')
-            else:
-                pred_bbox_deltas = tf.reshape(pred_bbox_deltas,
-                            [1, self.anchors_per_img, 4], name='bbox_delta')
             self.pred_bbox_deltas = pred_bbox_deltas
 
             # compute the total number of ground truth objects in the batch (used to
             # normalize the bbox and classification losses):
-            self.no_of_gt_objects = tf.reduce_sum(self.box_mask, name='num_objects')
+            self.no_of_gt_objects = tf.reduce_sum(self.box_mask_ph, name='num_objects')
 
         with tf.variable_scope("BBox") as scope:
             # transform the anchor bboxes to predicted bboxes using the predicted
@@ -321,7 +316,7 @@ class SqueezeDet_model(object):
             #===================================
             self.pred_bboxes = tf.transpose(tf.stack([cx, cy, w, h]), (1, 2, 0), name='pred_bbox')
 
-        with tf.variable_scope("IOU") as scope:
+        with tf.variable_scope("IOU"):
             def _tensor_iou(box1, box2):
                 with tf.variable_scope('intersection'):
                   xmin = tf.maximum(box1[0], box2[0], name='xmin')
@@ -342,21 +337,22 @@ class SqueezeDet_model(object):
                   union = w1*h1 + w2 * h2 - intersection
 
                 return intersection/(union + self.epsilon) \
-                    * tf.reshape(self.box_mask, [self.batch_size, self.anchors_per_img])
+                    * tf.reshape(self.box_mask_ph, [self.batch_size, self.anchors_per_img])
 
             self.ious = self.ious.assign(
               _tensor_iou(
                   bbox_transform(tf.unstack(self.pred_bboxes, axis=2)),
-                  bbox_transform(tf.unstack(self.box_input, axis=2))
+                  bbox_transform(tf.unstack(self.gt_boxes_input_ph, axis=2))
               )
             )
 
         # compute Pr(class) = Pr(class | object)*Pr(object):
 
         with tf.name_scope("Probability"):
-            print("Debug btch: %d, anchor %d" %(self.batch_size, self.anchors_per_img))
-            probs = self.pred_class_probs*tf.reshape(self.pred_conf_scores,
-                    [self.batch_size, self.anchors_per_img, 1], name='final_class_prob')
+
+            probs = self.pred_class_probs * tf.reshape(self.pred_conf_scores,
+                                                      [self.batch_size, self.anchors_per_img, 1],
+                                                      name='final_class_prob')
             #===================================
             # Used for test operation in demo.py
             #===================================
@@ -371,12 +367,12 @@ class SqueezeDet_model(object):
         # # [batch_size, anchors_per_img])
 
     def add_loss_op(self):
-        # compute the class cross-entropy loss (adds a small value to log to
-        # prevent it from blowing up):
+        # cross-entropy: q * -log(p) + (1-q) * -log(1-p)
+        # add a small value into log to prevent blowing up
         with tf.variable_scope('class_regression') as scope:
-            class_loss = (self.class_labels*(-tf.log(self.pred_class_probs + self.epsilon)) +
-                        (1 - self.class_labels)*(-tf.log(1 - self.pred_class_probs + self.epsilon)))
-            class_loss = self.loss_coeff_class*self.box_mask * class_loss
+            class_loss = (self.class_labels_ph *(-tf.log(self.pred_class_probs + self.epsilon)) +
+                        (1 - self.class_labels_ph)*(-tf.log(1 - self.pred_class_probs + self.epsilon)))
+            class_loss = self.loss_coeff_class*self.box_mask_ph * class_loss
             class_loss = tf.reduce_sum(class_loss, name="sum_class_loss")
             # # normalize the class loss (tf.truediv is used to ensure that we get
             # # no integer divison):
@@ -389,7 +385,7 @@ class SqueezeDet_model(object):
         # the conf loss in the paper, but they are actually equivalent since
         # self.IOUs is masked as well):
         with tf.variable_scope('ConfidenceScoreRegression') as scope:
-            input_mask = tf.reshape(self.box_mask, [self.batch_size,
+            input_mask = tf.reshape(self.box_mask_ph, [self.batch_size,
                         self.anchors_per_img])
 
             self.conf_loss = tf.reduce_mean(
@@ -411,7 +407,7 @@ class SqueezeDet_model(object):
 
         # compute the bbox regression loss:
         with tf.variable_scope('BBoxRegression') as scope:
-            bbox_loss = self.box_mask * (self.pred_bbox_deltas - self.box_delta_input)
+            bbox_loss = self.box_mask_ph * (self.pred_bbox_deltas - self.box_delta_input_ph)
             bbox_loss = self.loss_coeff_bbox*tf.square(bbox_loss)
             bbox_loss = tf.reduce_sum(bbox_loss)
             bbox_loss = tf.truediv(bbox_loss, self.no_of_gt_objects, name='bbox_loss')
@@ -540,8 +536,9 @@ class SqueezeDet_model(object):
     def filter_prediction(self, boxes, probs, class_inds):
         # Filter prediction for testing in demo.py
         #(boxes, probs and class_inds are lists of length anchors_per_img)
-        print("Probabilities before filter: ", probs)
-        print("Length probs: ", len(probs))
+        print("Probs: ", probs)
+        print("length probs: ", len(probs))
+        print("Class idx: ", class_inds)
         if self.top_N_detections < len(probs):
             # get the top_N_detections largest probs and their corresponding
             # boxes and class_inds:
@@ -573,7 +570,8 @@ class SqueezeDet_model(object):
                   final_probs.append(probs[inds_for_c[i]])
                   final_class_inds.append(c)
 
-        print("Probabilities after filter: ", final_probs)
+        print("Final probs: ", final_probs)
+        print("Final Class idx: ", final_class_inds)
         return final_boxes, final_probs, final_class_inds
 
     def variable_with_weight_decay(self, name, shape, wd, initializer, trainable=True):
@@ -608,8 +606,8 @@ class SqueezeDet_model(object):
         # github.com/BichenWuUCB/squeezeDet
         # H is the number of grid in vertical axis
         # W is the number of grid in the horizontal axis
-        H = int(self.img_height / 16)
-        W = int(self.img_width / 16)
+        H = int(self.img_height / 16)   # = 45
+        W = int(self.img_width / 16)    # = 80
         B = 9
         print("H,W,B: %d, %d, %d" % (H,W,B))
         anchor_shapes = np.reshape(
