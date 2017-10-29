@@ -5,6 +5,17 @@ import cv2
 import numpy as np
 import tensorflow as tf
 
+
+def resize_bbox_fcenter(shape_img_orig, shape_img_new, bbox):
+    hscale = shape_img_new[0] / shape_img_orig[0]
+    wscale = shape_img_new[1] / shape_img_orig[1]
+    new_bbox = bbox
+    new_bbox[0]= bbox[0]*wscale
+    new_bbox[1]= bbox[1]*hscale
+    new_bbox[2]= bbox[2]*wscale
+    new_bbox[3]= bbox[3]*hscale
+    return new_bbox
+
 # Visualization with box format cx, cy, w, h, label
 def vis_gt_bboxes(img_path, bboxes):
     class_label_to_string = {0: "Red", 1: "Yellow", 2: "Green", 3: "Off"}
@@ -195,6 +206,7 @@ def nms(boxes, probs, threshold):
 
 # function for computing the IOU between a bbox and a batch of bboxes:
 def batch_IOU(boxes, box):
+
     intersect_xmax = np.minimum(boxes[:, 0] + 0.5*boxes[:, 2], box[0] + 0.5*box[2])
     intersect_xmin = np.maximum(boxes[:, 0] - 0.5*boxes[:, 2], box[0] - 0.5*box[2])
     intersect_ymax = np.minimum(boxes[:, 1] + 0.5*boxes[:, 3], box[1] + 0.5*box[3])

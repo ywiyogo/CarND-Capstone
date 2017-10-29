@@ -14,7 +14,7 @@ import yaml
 import sys
 from model import SqueezeDet_model
 
-from utilities import sparse_to_dense, batch_IOU, draw_bboxes, vis_gt_bboxes
+from utilities import sparse_to_dense, batch_IOU, draw_bboxes, vis_gt_bboxes, resize_bbox_fcenter
 
 if not len(sys.argv) == 2:
     print("Usage: python train_bosch_tl.py <dataset_dir_path>")
@@ -53,7 +53,7 @@ for path, boxes in train_data_dict.items():
 
 no_of_imgs = len(train_data_dict)
 # select 80 % of the imgs as train data
-tratio = 0.9
+tratio = 0.8
 vratio = 1 - tratio
 
 train_data = list(zip(orig_train_img_paths[:int(no_of_imgs*tratio)],
@@ -71,28 +71,24 @@ print("number of train imgs: %d " % len(train_data))
 no_of_train_imgs = len(train_data)
 no_of_val_imgs = len(val_data)
 
-no_of_batches = 50 #int(no_of_train_imgs/batch_size)
+no_of_batches =  int(no_of_train_imgs/batch_size)
 no_of_val_batches = int(no_of_val_imgs/batch_size)
 no_of_epochs = 10
 
-#val_img_paths, val_bboxes_per_img = zip(*val_data)
-# for step, val_img_path in enumerate(val_img_paths):
-#     if step%4==0:
-#         path = os.path.join(bosch_data_dir, val_img_path)
-#         img = vis_gt_bboxes(path, val_bboxes_per_img[step])
-#         cv2.imshow("img", img)
-#         cv2.waitKey(0)
 
 
 def evaluate_on_val():
+    """ Validation function """
+
     random.shuffle(val_data)
     val_img_paths, val_bboxes_per_img = zip(*val_data)
 
     val_batch_losses = []
     batch_pointer = 0
+    is_resized = False
     for step in range(no_of_val_batches):
         batch_imgs = np.zeros((batch_size, img_height, img_width, 3), dtype=np.float32)
-
+        path_imgs =[]
         # (list of length batch_size, each element is a list of length
         # no_of_gt_bboxes_in_img containing the class labels (0=car, 1=pedestrian
         # etc.) of the ground truth bboxes in the image)
@@ -114,20 +110,42 @@ def evaluate_on_val():
         # for each ground truth bbox in the image)
         anchor_indices_per_img  = []
 
+
         for i in range(batch_size):
             # read the next img:
             img_path = os.path.join(bosch_data_dir,val_img_paths[batch_pointer + i])
-            img = cv2.imread(img_path, -1)
-            assert not img is None, "invalid path: %s" % img_path
-            img = cv2.resize(img, (img_width, img_height))
+            orig_img = cv2.imread(img_path, -1)
+            assert not orig_img is None, "invalid path: %s" % img_path
+            if orig_img.shape[0] ==img_height and orig_img.shape[1] ==img_width:
+                img = orig_img
+            else:
+                img = cv2.resize(orig_img, (img_width, img_height))
+                is_resized = True
+
             img = img - train_mean_channels
+
             batch_imgs[i] = img
+            path_imgs.append(img_path)
 
             img_bboxes = val_bboxes_per_img[batch_pointer + i]
+
             # (bbox format: [center_x, center_y, w, h, class_label] where
             # class_label is a string)
             img_class_labels=[]
+            img_resized_bboxes=[]
             for box in img_bboxes:
+                if box[0]<0 or box[1]<0 or box[2]<0 or box[3]<0:
+                    print("Warn: negative value of bbox in ", img_path)
+                    continue
+                else:
+                    if len(box) >0:
+                        if is_resized:
+                            img_resized_bboxes.append(resize_bbox_fcenter(orig_img.shape, img.shape, box))
+                        else:
+                            img_resized_bboxes.append(box)
+                    else:
+                        img_resized_bboxes.append([])
+
                 if 'Red' in box[4]:
                     img_class_labels.append(0)
 
@@ -141,7 +159,7 @@ def evaluate_on_val():
 
             class_labels_per_img.append(img_class_labels)
 
-            img_gt_bboxes = np.array([[b[0], b[1], b[2], b[3]] for b in img_bboxes])
+            img_gt_bboxes = np.array([[b[0], b[1], b[2], b[3]] for b in img_resized_bboxes])
             # (bbox format: [center_x, center_y, w, h]. img_gt_bboxes has shape
             # [no_of_gt_bboxes_in_img, 4])
             gt_bboxes_per_img.append(img_gt_bboxes)
@@ -265,6 +283,7 @@ def evaluate_on_val():
 
 
         if step < 5:
+            print("Val input image:", path_imgs[i])
             final_bboxes, final_probs, final_classes = model.filter_prediction(
                         pred_bboxes[0], detection_probs[0], detection_classes[0])
 
@@ -274,9 +293,11 @@ def evaluate_on_val():
             final_classes = [final_classes[idx] for idx in keep_idx]
 
             # draw the bboxes that the model would've output in inference:
-            basepath = os.path.basename(img_path)
-            pred_img = draw_bboxes(batch_imgs[0].copy()+train_mean_channels,
+            basepath = os.path.basename()
+
+            pred_img = draw_bboxes(batch_imgs[0].copy() + train_mean_channels,
                         model.anchor_bboxes, final_classes, final_probs)
+
             pred_img = cv2.resize(pred_img, (int(0.4*img_width),
                         int(0.4*img_height)))
             pred_path = (model.debug_imgs_dir + "val_" + str(epoch) + "_" +
@@ -306,8 +327,8 @@ def evaluate_on_val():
                     filtered_pred_probs.append(pred_prob)
 
             # draw ground truth bboxes on the first batch image and save to disk:
-            gt_img = draw_bboxes(batch_imgs[0].copy()+train_mean_channels,
-                        filtered_gt_bboxes, filtered_gt_classes)
+            gt_img = draw_bboxes(batch_imgs[0].copy() + train_mean_channels,
+                                 filtered_gt_bboxes, filtered_gt_classes)
 
             gt_img = cv2.resize(gt_img, (int(0.4*img_width), int(0.4*img_height)))
             gt_path = (model.debug_imgs_dir + "val_" + str(epoch) + "_" +
@@ -318,9 +339,9 @@ def evaluate_on_val():
             # on the first batch image and save to disk (so that one can compare
             # the gt bboxes and what the model outputs for the asigned anchors,
             # i.e. for the anchors that should match perfectly):
-            pred_assigned_img = draw_bboxes(batch_imgs[0].copy()+train_mean_channels,
-                        filtered_pred_bboxes, filtered_pred_classes,
-                        filtered_pred_probs)
+            pred_assigned_img = draw_bboxes(batch_imgs[0].copy() + train_mean_channels,
+                                filtered_pred_bboxes, filtered_pred_classes,
+                                filtered_pred_probs)
             pred_assigned_img = cv2.resize(pred_assigned_img,
                         (int(0.4*img_width), int(0.4*img_height)))
             pred_assigned_path = (model.debug_imgs_dir + "val_" + str(epoch) +
@@ -330,11 +351,15 @@ def evaluate_on_val():
     val_loss = np.mean(val_batch_losses)
     return val_loss
 
+
 def train_data_iterator():
+    """ Training data generator for tensor flow """
+
     random.shuffle(train_data)
     train_img_paths, train_bboxes_per_img = zip(*train_data)
 
     batch_pointer = 0
+    is_resized = False
     for step in range(no_of_batches):
         batch_imgs = np.zeros((batch_size, img_height, img_width, 3), dtype=np.float32)
 
@@ -362,22 +387,37 @@ def train_data_iterator():
         for i in range(batch_size):
             # read the next img:
             img_path = os.path.join(bosch_data_dir, train_img_paths[batch_pointer + i])
-            img = cv2.imread(img_path, -1)
-            assert not img is None, " img_path is %s" % img_path
-            img = cv2.resize(img, (img_width, img_height))
+            orig_img = cv2.imread(img_path, -1)
+            assert not orig_img is None, " img_path is %s" % img_path
+            # check for difference image dimension
+            if orig_img.shape[0] ==img_height and orig_img.shape[1] ==img_width:
+                img = orig_img
+            else:
+                img = cv2.resize(orig_img, (img_width, img_height))
+                is_resized = True
+
             img = img - train_mean_channels
             batch_imgs[i] = img
 
             img_bboxes = train_bboxes_per_img[batch_pointer + i]
+
             # (bbox format: [center_x, center_y, w, h, class_label] where
             # class_label is a string)
             img_class_labels=[]
-            img_gt_bboxes=[]
+            img_resized_bboxes=[]
             for box in img_bboxes:
                 if box[0]<0 or box[1]<0 or box[2]<0 or box[3]<0:
+                    print("Warn: negative value of bbox in ", img_path)
                     continue
                 else:
-                    img_gt_bboxes.append([box[0],box[1],box[2],box[3]])
+                    if len(box) >0:
+                        if is_resized:
+                            img_resized_bboxes.append(resize_bbox_fcenter(orig_img.shape, img.shape, box))
+                        else:
+                            img_resized_bboxes.append(box)
+                    else:
+                        img_resized_bboxes.append([])
+
 
                 if 'Red' in box[4]:
                     img_class_labels.append(0)
@@ -391,8 +431,8 @@ def train_data_iterator():
                     img_class_labels.append(3)
 
             class_labels_per_img.append(img_class_labels)
-            img_gt_bboxes = np.array(img_gt_bboxes)
-            #img_gt_bboxes = np.array([[b[0], b[1], b[2], b[3]] for b in img_bboxes])
+            #img_gt_bboxes = np.array(img_gt_bboxes)
+            img_gt_bboxes = np.array([[b[0], b[1], b[2], b[3]] for b in img_resized_bboxes])
             # (bbox format: [center_x, center_y, w, h]. img_gt_bboxes has shape
             # [no_of_gt_bboxes_in_img, 4])
             gt_bboxes_per_img.append(img_gt_bboxes)
@@ -496,7 +536,6 @@ def train_data_iterator():
         yield (batch_imgs, batch_mask, batch_gt_deltas, batch_gt_bboxes, batch_class_labels)
 
 
-
 # create a saver for saving all model variables/parameters:
 saver = tf.train.Saver()
 
@@ -506,11 +545,10 @@ class_loss_per_epoch = []
 conf_loss_per_epoch = []
 bbox_loss_per_epoch = []
 val_loss_per_epoch = []
-train_data_iterator()
-# initialize a list containing the 5 best val losses (is used to tell when to
-# save a model checkpoint):
-best_epoch_losses = [1000, 1000, 1000, 1000, 1000]
 
+# =========================================
+# Start of the Tensor Flow Training session
+# =========================================
 with tf.Session() as sess:
     # initialize all variables/parameters:
     init = tf.global_variables_initializer()
@@ -608,9 +646,6 @@ with tf.Session() as sess:
             saver.save(sess, checkpoint_path)
             print("checkpoint saved in file: %s" % checkpoint_path)
 
-        # update the top 5 val losses:
-        index = best_epoch_losses.index(max(best_epoch_losses))
-        best_epoch_losses[index] = val_loss
 
         #plot the val loss vs epoch and save to disk:
         plt.figure(1)

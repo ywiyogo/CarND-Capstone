@@ -113,8 +113,10 @@ def augment_train_data(bosch_data_dir, bosch_data, train_data_dict):
     augmented_train_bboxes = []
     print("Training data augmentation...")
     for step, image_dict in enumerate(bosch_data):
-        if step % 5 == 0:
-            img_path = image_dict['path']
+        img_path = image_dict['path']
+        # Augmented sim and udacity data only
+        if "left" in img_path:
+
             # skipped image with no bbox
             if len(image_dict['boxes']) <1:
                 continue
@@ -128,8 +130,7 @@ def augment_train_data(bosch_data_dir, bosch_data, train_data_dict):
             img_flipped_path =  img_path.split(".png")[0] + "_flipped.png"
             img_flipped_path = os.path.join(save_dir, os.path.basename(img_flipped_path))
             cv2.imwrite(img_flipped_path, img_flipped)
-            if step % 100 == 0:
-                print("Flip path: ",img_flipped_path)
+            print("Flip path: ",img_flipped_path)
             # save the paths to the flipped and original imgs (NOTE! the order must
             # match the order in which we append the label paths below):
             augmented_train_img_paths.append(img_flipped_path)
@@ -157,17 +158,18 @@ def augment_train_data(bosch_data_dir, bosch_data, train_data_dict):
 
                     cx = x_left_flipped + w/2
                     cy = box["y_min"] + h/2
-                    augmented_bboxes.append([cx, cy, w,h, box['label']])
+                    augmented_bboxes.append([cx, cy, w, h, box['label']])
 
             # save the paths to the flipped and original label files (NOTE! the order
             # must match the order in which we append the img paths above):
             train_data_dict[img_flipped_path]=augmented_bboxes
-            if DEBUG:
-                abs_path = os.path.join(bosch_data_dir, img_flipped_path)
-                bbox_img = vis_gt_bboxes(abs_path, augmented_bboxes)
-                assert not bbox_img is None
-                cv2.imshow("Augmented", bbox_img)
-                cv2.waitKey(0)
+
+            # if "left0" in abs_path:
+            #     abs_path = os.path.join(bosch_data_dir, img_flipped_path)
+            #     bbox_img = vis_gt_bboxes(abs_path, augmented_bboxes)
+            #     assert not bbox_img is None
+            #     cv2.imshow("Augmented", bbox_img)
+            #     cv2.waitKey(0)
 
     pickle.dump(train_data_dict,
                 open(os.path.join(bosch_data_dir, "pickles/bosch_dict_train_data.pkl"), "wb"))

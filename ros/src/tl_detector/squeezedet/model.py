@@ -25,6 +25,19 @@ def analyse_tf_graph(MODEL_PATH):
     layer1 = graph.get_tensor_by_name("conv1")
     print(layer1)
 
+def _add_loss_summaries(total_loss):
+    """Add summaries for losses
+    Generates loss summaries for visualizing the performance of the network.
+    Args:
+    total_loss: Total loss from loss().
+    """
+    losses = tf.get_collection('losses')
+
+    # Attach a scalar summary to all individual losses and the total loss; do the
+    # same for the averaged version of the losses.
+    for l in losses + [total_loss]:
+        tf.summary.scalar(l.op.name, l)
+
 class SqueezeDet_model(object):
 
     def __init__(self, model_id, pretrained_model_path=None, testmode=False):
@@ -35,7 +48,7 @@ class SqueezeDet_model(object):
         if testmode:
             self.batch_size = 1
         else:
-            self.batch_size = 24
+            self.batch_size = 20
 
         self.img_height = 720
         self.img_width = 1280
@@ -425,6 +438,9 @@ class SqueezeDet_model(object):
         lr = tf.train.exponential_decay(learning_rate=self.initial_lr,
                         global_step=global_step, decay_steps=self.decay_steps,
                         decay_rate=self.lr_decay_rate, staircase=True)
+
+        tf.summary.scalar('learning_rate', lr)
+        _add_loss_summaries(self.loss)
 
         optimizer = tf.train.MomentumOptimizer(learning_rate=lr, momentum=self.momentum)
 
