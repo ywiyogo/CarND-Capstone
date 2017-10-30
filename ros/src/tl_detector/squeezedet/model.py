@@ -6,7 +6,7 @@ import numpy as np
 import tensorflow as tf
 import os
 import joblib   # like pickle but it seems to be faster
-
+import matplotlib.pyplot as plt
 from utilities import safe_exp, bbox_transform, bbox_transform_inv, nms
 
 def analyse_tf_graph(MODEL_PATH):
@@ -48,14 +48,13 @@ class SqueezeDet_model(object):
         if testmode:
             self.batch_size = 1
         else:
-            self.batch_size = 20
+            self.batch_size = 6
 
         self.img_height = 720
         self.img_width = 1280
 
         self.num_classes = 4
-        self.class_string_to_label = {"Red": 0, "Yellow": 1, "Green": 2,
-                                      "off": 3}
+        self.class_string_to_label = {"Red": 0, "Yellow": 1, "Green": 2, "off": 3}
         # capacity for FIFOQueue
         # self.queue_capacity = 2
         # model parameters
@@ -63,8 +62,6 @@ class SqueezeDet_model(object):
 
         # model size counter
         self.model_size_counter = [] # array of tuple of layer name, parameter size
-        # flop counter
-        self.flop_counter = [] # array of tuple of layer name, flop number
 
         # training parameters:
         self.initial_lr = 0.0001
@@ -75,10 +72,11 @@ class SqueezeDet_model(object):
         self.weight_decay = 0.0001
 
         # set all anchor bboxes and related parameters:
-        self.anchor_bboxes = self.set_anchors()
+        self.anchors_per_gridpoint = 9  # due to the 3x3 kernel
+        self.anchor_bboxes = self.set_anchors(self.anchors_per_gridpoint)
         # # (anchor_bboxes has shape [anchors_per_img, 4])
         self.anchors_per_img = len(self.anchor_bboxes)
-        self.anchors_per_gridpoint = 9
+
 
         # bbox filtering parameters for testing:
         self.top_N_detections = 10
@@ -217,7 +215,7 @@ class SqueezeDet_model(object):
         # (NOTE! the layer names ("conv1", "fire2" etc.) below must match
         # the names in the pretrained SqueezeNet model when using this for
         # initialization)
-        conv_1 = self.conv_layer("conv1", self.image_input_ph, filters=64, size=3,
+        conv_1 = self.conv_layer("conv1", self.image_input_ph, filters=80, size=3,
                     stride=2, padding="SAME", freeze=True)
         pool_1 = self.pooling_layer(conv_1, size=3, stride=2, padding="SAME")
 
@@ -552,27 +550,29 @@ class SqueezeDet_model(object):
     def filter_prediction(self, boxes, probs, class_inds):
         # Filter prediction for testing in demo.py
         #(boxes, probs and class_inds are lists of length anchors_per_img)
-        print("Probs: ", probs)
+        print("Probs: ", sorted(probs, reverse=True)[10])
         print("length probs: ", len(probs))
-        print("Class idx: ", class_inds)
-        if self.top_N_detections < len(probs):
-            # get the top_N_detections largest probs and their corresponding
-            # boxes and class_inds:
-            # # (order[0] is the index of the largest value in probs, order[1]
-            # # the index of the second largest value etc. order has length
-            # # top_N_detections)
-            order = probs.argsort()[:-self.top_N_detections-1:-1]
-            probs = probs[order]
-            boxes = boxes[order]
-            class_inds = class_inds[order]
-        else:
+        print("Class idx: %s, len: %d" % (class_inds, len(class_inds)))
+
+        # if self.top_N_detections < len(probs):
+        #     # get the top_N_detections largest probs and their corresponding
+        #     # boxes and class_inds:
+        #     # # (order[0] is the index of the largest value in probs, order[1]
+        #     # # the index of the second largest value etc. order has length
+        #     # # top_N_detections)
+        #     order = probs.argsort()[:-self.top_N_detections-1:-1]
+        #     probs = probs[order]
+        #     boxes = boxes[order]
+        #     class_inds = class_inds[order]
+        # else:
             # remove all boxes, probs and class_inds corr. to
             # prob values <= prob_thresh:
-            filtered_idx = np.nonzero(probs > self.prob_thresh)[0]
-            probs = probs[filtered_idx]
-            boxes = boxes[filtered_idx]
-            class_inds = class_inds[filtered_idx]
-        print("Filter threshold: ", self.prob_thresh)
+
+        print("Applying Filter threshold: ", self.prob_thresh)
+        filtered_idx = np.nonzero(probs > self.prob_thresh)[0]
+        probs = probs[filtered_idx]
+        boxes = boxes[filtered_idx]
+        class_inds = class_inds[filtered_idx]
         print("Probabilities after filter: ", probs)
         final_boxes = []
         final_probs = []
@@ -617,44 +617,47 @@ class SqueezeDet_model(object):
         return var
 
 
-    def set_anchors(self):
+    def set_anchors(self, anchor_per_gridpoint):
         # NOTE! this function is taken directly from
         # github.com/BichenWuUCB/squeezeDet
         # H is the number of grid in vertical axis
         # W is the number of grid in the horizontal axis
-        H = int(self.img_height / 16)   # = 45
-        W = int(self.img_width / 16)    # = 80
-        B = 9
-        print("H,W,B: %d, %d, %d" % (H,W,B))
+        # K is the number of box shapes
+        # depends on the Tensor("InterpretOutput/strided_slice:0", shape=(5, 45, 80, 36)
+        center_distance= 16
+        H = int(self.img_height / center_distance)
+        W = int(self.img_width / center_distance)
+        K = anchor_per_gridpoint
+        print("H,W,K: %d, %d, %d" % (H,W,K))
         anchor_shapes = np.reshape(
             [np.array(
-                [[  36.,  37.], [ 366., 174.], [ 115.,  59.],
-                [ 162.,  87.], [  38.,  90.], [ 258., 173.],
-                [ 224., 108.], [  78., 170.], [  72.,  43.]])]*H*W,
-            (H, W, B, 2)
+                [[ 15,  28], [  32,  36], [  48,  90],
+                 [ 72,  43], [  78, 140], [ 120, 220],
+                 [ 115, 59], [ 162,  87], [ 258, 173]])]*H*W,
+            (H, W, K, 2)
         )
-
         center_x = np.reshape(
             np.transpose(
                 np.reshape(
-                    np.array([np.arange(1, W+1)*float(self.img_width)/(W+1)]*H*B),
-                    (B, H, W)
+                    np.array([np.arange(1, W+1)*float(self.img_width)/(W+1)]*H*K),
+                    (K, H, W)
                 ),
                 (1, 2, 0)
             ),
-            (H, W, B, 1)
+            (H, W, K, 1)
         )
 
         center_y = np.reshape(
             np.transpose(
                 np.reshape(
-                    np.array([np.arange(1, H+1)*float(self.img_height)/(H+1)]*W*B),
-                    (B, W, H)
+                    np.array([np.arange(1, H+1)*float(self.img_height)/(H+1)]*W*K),
+                    (K, W, H)
                 ),
                 (2, 1, 0)
             ),
-            (H, W, B, 1)
+            (H, W, K, 1)
         )
+
         # reshaping array to N rows and 4 columns
         anchors = np.reshape(
             np.concatenate((center_x, center_y, anchor_shapes), axis=3),

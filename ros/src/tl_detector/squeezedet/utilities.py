@@ -4,7 +4,42 @@
 import cv2
 import numpy as np
 import tensorflow as tf
+import os
 
+def vis_anchors_vs_bboxes(img_path, img,  anchors, bboxes, gt_deltas=None):
+    for box in bboxes:
+        x_left = int(box[0] - box[2]/2)
+        y_bottom = int(box[1] + box[3]/2)
+        x_right = int(box[0] + box[2]/2)
+        y_top = int(box[1] - box[3]/2)
+        color=(0, 255, 255)
+        cv2.rectangle(img, (x_left, y_top), (x_right, y_bottom),
+                    color, 2)
+
+    for step, anchor in enumerate(anchors):
+        if step < 300:
+            x_left = int(anchor[0] - anchor[2]/2)
+            y_bottom = int(anchor[1] + anchor[3]/2)
+            x_right = int(anchor[0] + anchor[2]/2)
+            y_top = int(anchor[1] - anchor[3]/2)
+            color=(0, 0, 255)
+            cv2.rectangle(img, (x_left, y_top), (x_right, y_bottom),
+                        color, 2)
+    print("GT deltas: ",gt_deltas)
+    if not gt_deltas is None:
+        for delta in gt_deltas:
+            x_left = int(delta[0] - delta[2]/2)
+            y_bottom = int(delta[1] + delta[3]/2)
+            x_right = int(delta[0] + delta[2]/2)
+            y_top = int(delta[1] - delta[3]/2)
+            color=(250, 0, 0)
+            cv2.rectangle(img, (x_left, y_top), (x_right, y_bottom),
+                        color, 2)
+
+    basename=os.path.basename(img_path)
+    cv2.imshow(basename, img)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
 
 def resize_bbox_fcenter(shape_img_orig, shape_img_new, bbox):
     hscale = shape_img_new[0] / shape_img_orig[0]
@@ -117,7 +152,7 @@ def draw_bboxes(img, bboxes, class_labels, probs=None):
         for i in range(len(bboxes)):
             probs.append(99)
 
-    print(zip(bboxes, class_labels, probs))
+
     for bbox, class_label, prob in zip(bboxes, class_labels, probs):
         xmin, ymin, xmax, ymax = bbox_transform(bbox)
 
@@ -223,7 +258,7 @@ def batch_IOU(boxes, box):
     return IOUs
 
 # function for building a dense matrix from a sparse representation:
-def sparse_to_dense(indices, output_shape, values, default_value=0):
+def sparse_to_dense(sp_indices, output_shape, values, default_value=0):
     # NOTE! this function is a modified version of sparse_to_dense in
     # github.com/BichenWuUCB/squeezeDet
 
@@ -236,27 +271,9 @@ def sparse_to_dense(indices, output_shape, values, default_value=0):
     # set to values[i])
 
     # (default_value: values to set for indices not specified in indices)
+    assert len(sp_indices) == len(values), 'Length of sp_indices is not equal to length of values'
 
-    array = np.ones(output_shape)*default_value
-    for idx, value in zip(indices, values):
+    array = np.ones(output_shape) * default_value
+    for idx, value in zip(sp_indices, values):
         array[tuple(idx)] = value
-
     return array
-
-# function for reading all variable values from a caffe model:
-def get_caffemodel_weights(prototxt_path, caffemodel_path):
-    # NOTE! this function is inspired by utils/caffemodel2pkl.py in
-    # github.com/BichenWuUCB/squeezeDet
-
-    import caffe
-
-    net = caffe.Net(prototxt_path, caffemodel_path, caffe.TEST)
-    weights = {}
-    no_of_layers = len(net.layers)
-    for i in range(no_of_layers):
-        layer_name = net._layer_names[i]
-        layer = net.layers[i]
-        layer_blobs = [o.data for o in layer.blobs]
-        weights[layer_name] = layer_blobs
-
-    return weights

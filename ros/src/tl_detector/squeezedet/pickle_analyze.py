@@ -5,7 +5,8 @@ from utilities import vis_gt_bboxes, draw_bboxes, resize_bbox_fcenter
 
 @click.command()
 @click.argument('dataset_dir', nargs=1)
-def analyze(dataset_dir, augmentation=0):
+@click.argument('keyword', nargs=1)
+def analyze(dataset_dir, keyword):
     pickle_dir = os.path.join(dataset_dir,"pickles")
     data_dict = pickle.load(open(os.path.join(pickle_dir,"bosch_dict_train_data.pkl"), "rb"))
 
@@ -13,13 +14,12 @@ def analyze(dataset_dir, augmentation=0):
         train_mean_channels= pickle.load(f, encoding='bytes')
 
     distrib = {"Red":0, "Yellow":0, "Green":0, "off":0}
-
+    print("Train mean channel: ",train_mean_channels)
     img_height = 720
     img_width = 1280
 
     for step, (path, bboxes) in enumerate(data_dict.items()):
-        print(path)
-        if "left01" in path:
+        if keyword in path:
             abs_path = os.path.join(dataset_dir, path)
             img_orig = cv2.imread(abs_path)
             img = cv2.resize(img_orig, (img_width, img_height))

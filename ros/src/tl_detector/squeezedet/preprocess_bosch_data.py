@@ -21,9 +21,6 @@ def preprocessing(bosch_data_dir, augmentation=1):
     if not os.path.isabs(bosch_data_dir):
         bosch_data_dir = os.path.join(os.getcwd(),bosch_data_dir)
 
-
-    no_of_classes = 4 # (number of object classes (cars, pedestrians, bicyclists))
-
     input_yaml = os.path.join(bosch_data_dir, "train.yaml")
     bosch_data = yaml.load(open(input_yaml, 'rb').read())
     train_data_dict ={}
@@ -35,7 +32,18 @@ def preprocessing(bosch_data_dir, augmentation=1):
         image_dict['path']
         bboxes=[]
         for box in image_dict['boxes']:
-            # YW NOTE: ignore occluded box due to minus value in anchor calculation
+            # ignored occluded image larger than the 10 px offset
+            if box["x_max"]>(img_width+10) or box["x_min"]<-10 or box["y_min"] <-10:
+                print("ignore an occluded bbox in ",image_dict['path'])
+                continue
+            #set
+            elif box["x_max"]>img_width :
+                box["x_max"] = img_width
+            elif box["x_min"]<0:
+                 box["x_min"] = 0
+            elif box["y_min"]<0:
+                box["y_min"] = 0
+
             w = box["x_max"] - box["x_min"]
             h = box["y_max"] - box["y_min"]
             if w<0:
@@ -75,29 +83,38 @@ def preprocessing(bosch_data_dir, augmentation=1):
     else:
         augment_train_data(bosch_data_dir, bosch_data, train_data_dict)
 
-    compute_mean_channel(bosch_data_dir, train_img_paths)
+    compute_mean_channel(bosch_data_dir)
     print("Original number of images: ", len(train_img_paths))
 
 
-def compute_mean_channel(data_dir, train_img_paths):
+def compute_mean_channel(data_dir):
     # compute the mean color channels of the train imgs:
-    print("computing the mean color channel of %d training imgs" % len(train_img_paths))
-    no_of_train_imgs = len(train_img_paths)
+    pickle_dir = os.path.join(data_dir,"pickles")
+    data_dict = pickle.load(open(os.path.join(pickle_dir,"bosch_dict_train_data.pkl"), "rb"))
+
+    print("computing the mean color channel of %d training imgs" % len(data_dict))
+
+    no_of_train_imgs = len(data_dict)
     mean_channels = np.zeros((3, ))
-    for step, img_path in enumerate(train_img_paths):
+    for step, (img_path, bboxes) in enumerate(data_dict.items()):
         if step % 500 == 0:
             print(step)
 
         img = cv2.imread(os.path.join(data_dir, img_path), -1)
         assert not img is None
+        if img.shape != [img_height, img_width, 3]:
+            img = cv2.resize(img, (img_width, img_height))
         img_mean_channels = np.mean(img, axis=0)
         img_mean_channels = np.mean(img_mean_channels, axis=0)
 
         mean_channels += img_mean_channels
 
     train_mean_channels = mean_channels/float(no_of_train_imgs)
+    print("train_mean_channels: ",train_mean_channels)
+
+    assert train_mean_channels[0]<256 and train_mean_channels[1]<256 and train_mean_channels[2]<256, "Invalid mean value %s" % train_mean_channels
     # # save to disk:
-    pickle.dump(mean_channels, open(os.path.join(data_dir, "pickles/bosch_mean_channels.pkl"), "wb"))
+    pickle.dump(train_mean_channels, open(os.path.join(data_dir, "pickles/bosch_mean_channels.pkl"), "wb"))
 
 
 
