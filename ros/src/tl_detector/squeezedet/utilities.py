@@ -6,6 +6,44 @@ import numpy as np
 import tensorflow as tf
 import os
 
+def filter_pred_boxes(batch_pred_boxes, batch_anchor_indices, batch_detection_probs, batch_detection_classes, VIS_DEBUG=False):
+    ''' Filtering the anchor boxes based on the anchor indices '''
+    det_boxes=[]
+    det_probs=[]
+    det_classes=[]
+    for batch_idx, anchor_boxes in enumerate(batch_pred_boxes):
+        anchor_indices = batch_anchor_indices[batch_idx]
+        anchor_probs = batch_detection_probs[batch_idx]
+        anchor_classes = batch_detection_classes[batch_idx]
+
+        for anc_idx in anchor_indices:
+            det_boxes.append(anchor_boxes[anc_idx])
+            det_probs.append(anchor_probs[anc_idx])
+            det_classes.append(anchor_classes[anc_idx])
+            print("det_classes: %d, det_probs: %f" % (anchor_classes[anc_idx], anchor_probs[anc_idx]))
+
+        if VIS_DEBUG:
+            print("Draw prediction bboxes")
+            im = cv2.imread(path_imgs[batch_idx],-1)
+            if im.shape[0] != img_height or im.shape[1] !=img_width:
+                im = cv2.resize(im, (img_width, img_height))
+            vis_anchors_vs_bboxes(path_imgs[batch_idx], im , boxes, gt_bboxes_per_img[batch_idx])
+
+    return det_boxes, det_probs, det_classes
+
+def filter_boxes(min_score, boxes, scores, classes):
+    """Return boxes with a confidence >= `min_score`"""
+    n = len(classes)
+    idxs = []
+    for i in range(n):
+        if scores[i] >= min_score:
+            idxs.append(i)
+
+    filtered_boxes = boxes[idxs, ...]
+    filtered_scores = scores[idxs, ...]
+    filtered_classes = classes[idxs, ...]
+    return filtered_boxes, filtered_scores, filtered_classes
+
 def vis_anchors_vs_bboxes(img_path, img,  anchors, bboxes, gt_deltas=None):
     for box in bboxes:
         x_left = int(box[0] - box[2]/2)
@@ -258,7 +296,7 @@ def batch_IOU(boxes, box):
     return IOUs
 
 # function for building a dense matrix from a sparse representation:
-def sparse_to_dense(sp_indices, output_shape, values, default_value=0):
+def sparse_to_dense(sp_indices, values, output_shape, default_value=0):
     # NOTE! this function is a modified version of sparse_to_dense in
     # github.com/BichenWuUCB/squeezeDet
 

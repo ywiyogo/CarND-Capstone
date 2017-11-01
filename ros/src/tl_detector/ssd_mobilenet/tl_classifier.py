@@ -12,6 +12,7 @@ import glob
 from scipy.misc import imread
 from scipy.misc import imshow, imsave
 from scipy.misc import imresize
+import collections
 
 # Frozen inference graph files.
 SSD_GRAPH_FILE = 'ssd_mobilenet_v1_coco_11_06_2017/frozen_inference_graph.pb'
@@ -23,6 +24,12 @@ cmap = ImageColor.colormap
 print("Number of colors =", len(cmap))
 COLOR_LIST = sorted([c for c in cmap.keys()])
 
+VIZ_DEBUG =0
+
+COLOR_TO_CLASS = {"Red": 0,
+                  "Yellow": 1,
+                  "Green": 2,
+                  "Unknown": 3}
 #
 # Utility funcs
 #
@@ -77,18 +84,105 @@ def load_graph(graph_file):
     return graph
 
 def crop_image(image, boxes):
+    ''' Cropping image in a bounding boxes'''
+    cropped_imgs=[]
     for i in range(len(boxes)):
-        ymax, xmin, ymin, xmax = boxes[i, ...]
+        ymin, xmin, ymax, xmax = boxes[i, ...]
+        print("Boxes: ", boxes[i, ...])
         w = (xmax- xmin)/2
         h = (ymax- ymin)/2
         cx = xmin + w
         cy = ymin + h
 
-        cropped = image.crop( (ymax, xmin,  xmax, ymin))#(xmin, ymin, w, h))
+        print("cx %d,cy %d,w %d ,h %d  " %(cx,cy,w,h))
+        cropped = image.crop( (xmin, ymin,  xmax, ymax))#(xmin, ymin, w, h))
         #croped_img = image[int(ymin):int(ymax), int(xmin):int(xmax)]
+        print(cropped.size)
+        cropped_imgs.append(cropped)
+        #cropped.save(RESULT_DIR+"cropped"+ str(i)+".jpg", "JPEG")
+    return cropped_imgs
 
-        cropped.save(RESULT_DIR+"cropped"+ str(i)+".jpg", "JPEG")
+def match_histogram(cropped_imgs):
+    ''' Classification using histogram color matching '''
+    results=[]
+    for cropped_img in cropped_imgs:
+        w, h = cropped_img.size
+        print("Mode: ", cropped_img.mode)
+        # binary warped image has 3 channels
+        np_cropped = np.array(cropped_img)
+        print("cropped img shape: ",np_cropped.shape)
+        RGB=[0.,0.,0.]
+        # Show numpy histogram
+        if len(np_cropped.shape) == 0:
+            return
 
+        for ch in range(3):
+            flatten_ch0 = np_cropped[:,:,ch].flatten()
+            color_freq=collections.Counter(flatten_ch0)
+
+            total_val = np.sum(np.array(list(color_freq.values())))
+
+            sorted_colors_tp = list(sorted(color_freq.items()))
+
+            # calculate only the frequency of the 250-255 values
+            for i in range(250,256):
+                RGB[ch] = RGB[ch] + color_freq[i]
+
+            # Normalization
+            RGB[ch] = float(RGB[ch])/total_val
+
+            if VIZ_DEBUG:
+                if ch == 0:
+                    strcolor="r"
+                elif ch==1:
+                    strcolor="g"
+                else:
+                    strcolor = "b"
+                sorted_colors_tp = np.array(sorted_colors_tp)
+                plt.bar(sorted_colors_tp[:, 0], sorted_colors_tp[:, 1]/total_val, color=strcolor, label="ch"+str(ch))
+        if VIZ_DEBUG:
+            plt.legend()
+            plt.show()
+
+        max_val = max(RGB)
+        max_idx = [i for i, ch in enumerate(RGB) if ch == max_val]
+        print("RGB: ",RGB)
+        #print("Max idx : %s with val %f " % (max_idx, max_val))
+        yellow_thres = 0.02
+
+
+        if RGB[0] >yellow_thres and RGB[1] >yellow_thres and RGB[2] < 0.01:
+            print("Yellow")
+            results.append(COLOR_TO_CLASS["Yellow"])
+        elif max_idx[0] == 0:
+            print("Red")
+            results.append(COLOR_TO_CLASS["Red"])
+        elif max_idx[0] == 1:
+            print("Green")
+            results.append(COLOR_TO_CLASS["Green"])
+        else:
+            print("Unknown")
+            results.append(COLOR_TO_CLASS["Unknown"])
+
+        # Comparison to PIL histogram
+        # ----------------------------------------
+        # RGB_dict={"Red":0, "Yellow":0, "Green":0}
+        # print(type(cropped_img.histogram()))
+        # # https://stackoverflow.com/questions/22460577/understanding-histogram-in-pillow
+        # for i, value in enumerate(cropped_img.histogram()):
+        #     #print(i, value) # i: 0 -767
+        #     if i > 0 and i <15:
+        #         RGB_dict["Red"]= value
+        #     elif i>500 and i < 515:
+        #         RGB_dict["Green"]= value
+        #     elif i >760:
+        #         RGB_dict["Blue"]= value
+        # #print(max(RGB_dict, key=RGB_dict.get))
+        # if VIZ_DEBUG:
+        #     plt.plot(cropped_img.histogram())
+        #     plt.show()
+    print("Final result: ", max(results))
+    return max(results)
 
 class TLDetector(object):
     def __init__(self):
@@ -110,7 +204,7 @@ class TLDetector(object):
         # The classification of the object (integer id).
         self.detection_classes = self.detection_graph.get_tensor_by_name('detection_classes:0')
 
-    def get_classification(self, image_path, DEBUG=1):
+    def get_classification(self, image_path, DEBUG=False):
         image = Image.open(image_path)
         image_np = np.expand_dims(image, 0)
         with tf.Session(graph=self.detection_graph) as sess:
@@ -135,23 +229,25 @@ class TLDetector(object):
             # This converts the coordinates actual location on the image.
             width, height = image.size
             box_coords = to_image_coords(boxes, height, width)
-            print(box_coords)
 
-            # Cropped image
-            image_np = np.squeeze(image_np)
-            print("after squeeze: ", image_np.shape)
-            crop_image(image, box_coords)
+            print("boxes: ", boxes)
+            print("Box coord: ",box_coords)
+
+#            Cropped image
+            if len(box_coords)> 0:
+                image_np = np.squeeze(image_np)
+                cropped_imgs = crop_image(image, box_coords)
+                return match_histogram(cropped_imgs)
+
+            if DEBUG:
+                # Each class with be represented by a differently colored box
+                draw_boxes(image, box_coords, classes)
+                basename = os.path.basename(image_path)
+                image.save(RESULT_DIR+basename, "JPEG")
 
 
-            # Each class with be represented by a differently colored box
-            draw_boxes(image, box_coords, classes)
-            basename = os.path.basename(image_path)
-
-            image.save(RESULT_DIR+basename, "JPEG")
-
-
-            #plt.figure(figsize=(12, 8))
-            #plt.imshow(image)
+                #plt.figure(figsize=(12, 8))
+                #plt.imshow(image)
 
 
 @click.command()

@@ -13,10 +13,11 @@ import os
 import sys
 from model import SqueezeDet_model
 
-from utilities import sparse_to_dense, batch_IOU, draw_bboxes, resize_bbox_fcenter, vis_anchors_vs_bboxes
+from utilities import sparse_to_dense, batch_IOU, draw_bboxes, resize_bbox_fcenter, vis_anchors_vs_bboxes, filter_pred_boxes
 
 DEBUG_TRAIN=0
 DEBUG_VAL=1
+DEBUG_VISUAL = 0
 
 if not len(sys.argv) == 2:
     print("Usage: python train_bosch_tl.py <dataset_dir_path>")
@@ -71,7 +72,7 @@ no_of_train_imgs = len(train_data)
 no_of_val_imgs = len(val_data)
 
 no_of_batches =  2#int(no_of_train_imgs/batch_size)
-no_of_val_batches = 6#int(no_of_val_imgs / batch_size / 2)
+no_of_val_batches = 3#int(no_of_val_imgs / batch_size / 2)
 no_of_epochs = 6
 
 
@@ -176,7 +177,6 @@ def evaluate_on_val():
                 # between each anchor bbox and gt_bbox)
 
 
-
                 anchor_idx = -1
                 #aquired the indices of the IoU with the desccendign order
                 sorted_anchor_indices_IOU = np.argsort(IOUs)[::-1] # (-1 gives descending order)
@@ -185,7 +185,7 @@ def evaluate_on_val():
                     filtered_iou = [i for i in IOUs if i > 0]
                     sortedIoU = sorted(filtered_iou, reverse=True)
                     #print("## IoU > 0: ",sortedIoU[:10] )
-                    print("## Sorted value with indices: ", IOUs[sorted_anchor_indices_IOU[0]] )
+                    print("## Sorted IoU value with indices: ", IOUs[sorted_anchor_indices_IOU[0]] )
 
                 # (the first element of sorted_anchor_indices_IOU is the index
                 # of the anchor with the LARGEST IOU with gt_bbox etc.)
@@ -244,7 +244,9 @@ def evaluate_on_val():
 
             anchor_indices_per_img.append(img_anchor_indices)
 
-            if DEBUG_VAL and len(img_gt_bboxes) >0:
+            print("gt_deltas_per_batch: ", gt_deltas_per_batch)
+            print("anchor_indices_per_img: ", anchor_indices_per_img)
+            if DEBUG_VAL and DEBUG_VISUAL and len(img_gt_bboxes) >0:
                 vis_anchors_vs_bboxes(img_path, img, assigned_anchor_bboxes, img_gt_bboxes, gt_delta_per_img)
 
         # (we now have batch_imgs, class_labels_per_img, gt_bboxes_per_img,
@@ -271,6 +273,7 @@ def evaluate_on_val():
                 class_label = img_class_labels[j]
                 anchor_idx = img_anchor_indices[j]
                 gt_delta = gt_delta_per_img[j]
+                #print("gt_delta: ", gt_delta)
                 gt_bbox = img_gt_bboxes[j]
 
                 class_label_indices.append([i, anchor_idx, class_label])
@@ -279,85 +282,88 @@ def evaluate_on_val():
 
                 gt_bbox_indices.extend([[i, anchor_idx, k] for k in range(4)])
                 gt_delta_values.extend(gt_delta)
+
                 gt_bbox_values.extend(gt_bbox)
 
         # (we now have mask_indices, class_label_indices, gt_bbox_indices,
         # gt_delta_values and gt_bbox_values)
 
         print("## Class_label_indices: ", class_label_indices) #[gt_box index, anchor_idx, class_label]
+        print("## gt_delta_values: ", gt_delta_values)
+        print("## model.anchors_per_img: ", model.anchors_per_img)
+        print("## mask_indices: ", mask_indices)
 
-        batch_mask = sparse_to_dense(mask_indices, [batch_size, model.anchors_per_img],
-                    [1.0]*len(mask_indices))
+        batch_mask = sparse_to_dense(mask_indices, [1.0]*len(mask_indices), [batch_size, model.anchors_per_img])
         batch_mask = np.reshape(batch_mask, [batch_size, model.anchors_per_img, 1])
 
-        batch_gt_deltas = sparse_to_dense(gt_bbox_indices,
-                    [batch_size, model.anchors_per_img, 4], gt_delta_values)
+        batch_gt_deltas = sparse_to_dense(gt_bbox_indices, gt_delta_values, [batch_size, model.anchors_per_img, 4])
 
-        batch_gt_bboxes = sparse_to_dense(gt_bbox_indices,
-                    [batch_size, model.anchors_per_img, 4], gt_bbox_values)
+        batch_gt_bboxes = sparse_to_dense(gt_bbox_indices, gt_bbox_values, [batch_size, model.anchors_per_img, 4])
 
-        batch_class_labels = sparse_to_dense(class_label_indices,
-                    [batch_size, model.anchors_per_img, num_classes],
-                    [1.0]*len(class_label_indices))
+        batch_class_labels = sparse_to_dense(class_label_indices,[1.0]*len(class_label_indices), [batch_size, model.anchors_per_img, num_classes])
 
         np_mask = np.array(batch_mask)
         np_gt_deltas = np.array(batch_gt_deltas)
         np_batch_class_label = np.array(batch_class_labels)
-        print("batch mask shape: ", np_mask.shape)
-        print(np.argwhere(np_mask > 0))
-        print("batch_gt_deltas shape: ", np_gt_deltas.shape)
-        print(np.argwhere(np_gt_deltas > 0))
-        print("batch_class_labels shape: ", np_batch_class_label.shape)
-        print(np.argwhere(np_batch_class_label > 0))
+
 
         batch_pointer += batch_size
 
+        keep_probs = 0.5
 
-        batch_feed_dict = model.create_feed_dict(batch_imgs, 1.0, mask=batch_mask,
+        batch_feed_dict = model.create_feed_dict(batch_imgs, keep_probs, mask=batch_mask,
                     gt_deltas=batch_gt_deltas, gt_bboxes=batch_gt_bboxes,
                     class_labels=batch_class_labels)
+
 
         batch_loss, pred_bboxes, detection_classes, detection_probs  = sess.run(
                     [model.loss, model.pred_bboxes, model.detection_classes,
                     model.detection_probs], feed_dict=batch_feed_dict)
         val_batch_losses.append(batch_loss)
+
         print ("epoch: %d/%d, val step: %d/%d, val batch loss: %g" % (epoch+1,
                     no_of_epochs, step+1, no_of_val_batches, batch_loss))
 
         np_pred_boxes = np.array(pred_bboxes)
-        print("Non zero Pred boxes: ", np.argwhere(np_pred_boxes>0))
-        np_detection_classes = np.array(detection_classes)
-        print("Non zero np_detection_classes: ", np.argwhere(np_detection_classes>0))
+        np_detection_probs = np.array(detection_probs)
 
-
-        if DEBUG_VAL and len(gt_bboxes_per_img[0]) > 0:
-            if len(pred_bboxes) >0:
-                class_label_indices[1]
-                vis_anchors_vs_bboxes(path_imgs[0], batch_imgs[0], pred_bboxes[], gt_bboxes_per_img[0])
-            else:
-                print("pred_bboxes is empty!")
+        print("Pred boxes shape: ", np_pred_boxes.shape)
+        print("Detection probs shape: ", np_detection_probs.shape)
+        print("Detection classes shape: ", detection_classes.shape)
 
         if step < 5:
-            print("Val input image:", path_imgs[i])
-            final_bboxes, final_probs, final_classes = model.filter_prediction(
-                        pred_bboxes[0], detection_probs[0], detection_classes[0])
 
-            keep_idx = [idx for idx in range(len(final_probs)) if final_probs[idx] > model.plot_prob_thresh]
-            final_bboxes = [final_bboxes[idx] for idx in keep_idx]
-            final_probs = [final_probs[idx] for idx in keep_idx]
-            final_classes = [final_classes[idx] for idx in keep_idx]
+            # final_bboxes, final_probs, final_classes = model.filter_prediction(
+            #             pred_bboxes[0], detection_probs[0], detection_classes[0])
+
+            #============================================================
+            # Filter Prediction Result from the FCN based on the founded anchor indices
+            #============================================================
+            final_bboxes, final_probs, final_classes = filter_pred_boxes(pred_bboxes, anchor_indices_per_img, detection_probs, detection_classes)
+
+            # keep_idx = [idx for idx in range(len(final_probs)) if final_probs[idx] > model.plot_prob_thresh]
+            # final_bboxes = [final_bboxes[idx] for idx in keep_idx]
+            # final_probs = [final_probs[idx] for idx in keep_idx]
+            # final_classes = [final_classes[idx] for idx in keep_idx]
+            print("")
+            print("Prediction bboxes: ", final_bboxes)
+            print("Prediction probs: ", final_probs)
+            print("Prediction classes: ", final_classes)
 
             # draw the bboxes that the model would've output in inference:
             basepath = os.path.basename(path_imgs[i])
 
             pred_img = draw_bboxes(batch_imgs[0].copy(),# + train_mean_channels,
-                        model.anchor_bboxes, final_classes, final_probs)
+                                   final_bboxes,
+                                   final_classes,
+                                   final_probs)
 
-            pred_img = cv2.resize(pred_img, (int(0.4*img_width),
-                        int(0.4*img_height)))
+            #pred_img = cv2.resize(pred_img, (int(0.4*img_width),
+            #            int(0.4*img_height)))
             pred_path = (model.debug_imgs_dir + "val_" + str(epoch) + "_" +
                         str(step) + "_pred"+ basepath+".png")
             cv2.imwrite(pred_path, pred_img)
+
 
 
             filtered_pred_bboxes = [] # bboxes corr to the first batch img
@@ -385,20 +391,23 @@ def evaluate_on_val():
             gt_img = draw_bboxes(batch_imgs[0].copy(),# + train_mean_channels,
                                  filtered_gt_bboxes, filtered_gt_classes)
 
-            gt_img = cv2.resize(gt_img, (int(0.4*img_width), int(0.4*img_height)))
+            #gt_img = cv2.resize(gt_img, (int(0.4*img_width), int(0.4*img_height)))
             gt_path = (model.debug_imgs_dir + "val_" + str(epoch) + "_" +
                         str(step) + "_gt"+ basepath+ ".png")
             cv2.imwrite(gt_path, gt_img)
 
+            #==============================================================
             # draw the predicted bboxes that are assigned to a ground truth bbox
             # on the first batch image and save to disk (so that one can compare
             # the gt bboxes and what the model outputs for the asigned anchors,
             # i.e. for the anchors that should match perfectly):
+            #==============================================================
             pred_assigned_img = draw_bboxes(batch_imgs[0].copy(),# + train_mean_channels,
-                                filtered_pred_bboxes, filtered_pred_classes,
-                                filtered_pred_probs)
-            pred_assigned_img = cv2.resize(pred_assigned_img,
-                        (int(0.4*img_width), int(0.4*img_height)))
+                                            filtered_pred_bboxes,
+                                            filtered_pred_classes,
+                                            filtered_pred_probs)
+            #pred_assigned_img = cv2.resize(pred_assigned_img,
+            #            (int(0.4*img_width), int(0.4*img_height)))
             pred_assigned_path = (model.debug_imgs_dir + "val_" + str(epoch) +
                         "_" + str(step) + "_pred_assigned"+ basepath+".png")
             cv2.imwrite(pred_assigned_path, pred_assigned_img)
@@ -573,25 +582,22 @@ def train_data_iterator():
                 class_label_indices.append([i, anchor_idx, class_label])
                 mask_indices.append([i, anchor_idx])
                 gt_bbox_indices.extend([[i, anchor_idx, k] for k in range(4)])
+
                 gt_delta_values.extend(gt_delta)
                 gt_bbox_values.extend(gt_bbox)
 
         # (we now have mask_indices, class_label_indices, gt_bbox_indices,
         # gt_delta_values and gt_bbox_values)
 
-        batch_mask = sparse_to_dense(mask_indices, [batch_size, model.anchors_per_img],
-                    [1.0]*len(mask_indices))
+        batch_mask = sparse_to_dense(mask_indices,[1.0]*len(mask_indices), [batch_size, model.anchors_per_img],
+                    )
         batch_mask = np.reshape(batch_mask, [batch_size, model.anchors_per_img, 1])
 
-        batch_gt_deltas = sparse_to_dense(gt_bbox_indices,
-                    [batch_size, model.anchors_per_img, 4], gt_delta_values)
+        batch_gt_deltas = sparse_to_dense(gt_bbox_indices, gt_delta_values, [batch_size, model.anchors_per_img, 4])
 
-        batch_gt_bboxes = sparse_to_dense(gt_bbox_indices,
-                    [batch_size, model.anchors_per_img, 4], gt_bbox_values)
+        batch_gt_bboxes = sparse_to_dense(gt_bbox_indices, gt_bbox_values, [batch_size, model.anchors_per_img, 4])
 
-        batch_class_labels = sparse_to_dense(class_label_indices,
-                    [batch_size, model.anchors_per_img, num_classes],
-                    [1.0]*len(class_label_indices))
+        batch_class_labels = sparse_to_dense(class_label_indices, [1.0]*len(class_label_indices), [batch_size, model.anchors_per_img, num_classes])
 
         batch_pointer += batch_size
 
@@ -599,11 +605,8 @@ def train_data_iterator():
         np_gt_deltas = np.array(batch_gt_deltas)
         np_batch_class_label = np.array(batch_class_labels)
         print("batch mask shape: ", np_mask.shape)
-        print(np.argwhere(np_mask > 0))
         print("batch_gt_deltas shape: ", np_gt_deltas.shape)
-        print(np.argwhere(np_gt_deltas > 0))
         print("batch_class_labels shape: ", np_batch_class_label.shape)
-        print(np.argwhere(np_batch_class_label > 0))
 
         yield (batch_imgs, batch_mask, batch_gt_deltas, batch_gt_bboxes, batch_class_labels)
 
