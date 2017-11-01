@@ -1,33 +1,33 @@
 import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
-from PIL import Image
-from PIL import ImageDraw
-from PIL import ImageColor
-import click
+import cv2
+import time
+from scipy.stats import norm
 import os
-import glob
 import collections
+import click
 
 # Frozen inference graph files.
-SSD_GRAPH_FILE = 'ssd_mobilenet_v1_coco_11_06_2017/frozen_inference_graph.pb'
+SSD_GRAPH_FILE = os.getcwd() + \
+    '/model/ssd_mobilenet_v1_coco_11_06_2017/frozen_inference_graph.pb'
 
-RESULT_DIR = os.path.join(os.getcwd(),"test/")
+RESULT_DIR = os.getcwd() + "/test/"
 
-# Colors (one for each class)
-cmap = ImageColor.colormap
-print("Number of colors =", len(cmap))
-COLOR_LIST = sorted([c for c in cmap.keys()])
-
-VIZ_DEBUG =0
+VIZ_DEBUG = 0
 
 COLOR_TO_CLASS = {"Red": 0,
                   "Yellow": 1,
                   "Green": 2,
                   "Unknown": 3}
-#
+CLASS_TO_COLOR = {0: (0, 0, 255),
+                  1: (0, 255, 255),
+                  2: (0, 255, 0),
+                  3: (19, 139, 69)}
+# ==============
 # Utility funcs
-#
+# ==============
+
 
 def filter_boxes(min_score, boxes, scores, classes):
     """Return boxes with a confidence >= `min_score`"""
@@ -35,13 +35,14 @@ def filter_boxes(min_score, boxes, scores, classes):
     idxs = []
     for i in range(n):
         if scores[i] >= min_score:
-            if classes[i] == 10:
+            if classes[i] == 10:    # Traffic light class is 10
                 idxs.append(i)
 
     filtered_boxes = boxes[idxs, ...]
     filtered_scores = scores[idxs, ...]
     filtered_classes = classes[idxs, ...]
     return filtered_boxes, filtered_scores, filtered_classes
+
 
 def to_image_coords(boxes, height, width):
     """
@@ -58,14 +59,40 @@ def to_image_coords(boxes, height, width):
 
     return box_coords
 
-def draw_boxes(image, boxes, classes, thickness=4):
-    """Draw bounding boxes on the image"""
-    draw = ImageDraw.Draw(image)
-    for i in range(len(boxes)):
-        bot, left, top, right = boxes[i, ...]
-        class_id = int(classes[i])
-        color = COLOR_LIST[class_id]
-        draw.line([(left, top), (left, bot), (right, bot), (right, top), (left, top)], width=thickness, fill=color)
+
+def draw_bboxes(img, bboxes, classes, probs=None):
+    ''' Drawing bounding box'''
+    if probs is None:   # if probability not available
+        # ground truth
+        probs = []
+        for i in range(len(bboxes)):
+            probs.append(-1)
+
+    for i, box in enumerate(bboxes):
+        # draw the bbox:
+        xmin = int(box[1])
+        ymin = int(box[0])
+        xmax = int(box[3])
+        ymax = int(box[2])
+
+        # Draw only valid color
+        if classes[i]<3:
+            cv2.rectangle(img, (xmin, ymin), (xmax, ymax),
+                          CLASS_TO_COLOR[classes[i]], 2)
+
+            if probs is not None:
+                # write the detection probability on the bbox:
+                # # make the top line of the bbox thicker:
+                cv2.rectangle(img, (xmin, ymin), (xmax, ymin - 12),
+                              CLASS_TO_COLOR[classes[i]], -1)
+                # # write the probaility in the top line of the bbox:
+                prob_string = "%.2f" % probs[i]
+                cv2.putText(img, prob_string, (int(xmin) + 2, int(ymin) - 2), 2, 0.4,
+                            (255, 255, 255), 2)
+
+    img_with_bboxes = img
+    return img_with_bboxes
+
 
 def load_graph(graph_file):
     """Loads a frozen inference graph"""
@@ -78,86 +105,81 @@ def load_graph(graph_file):
             tf.import_graph_def(od_graph_def, name='')
     return graph
 
-def crop_image(image, boxes):
+
+def crop_image(rgb_image, boxes):
     ''' Cropping image in a bounding boxes'''
-    cropped_imgs=[]
+    cropped_imgs = []
     for i in range(len(boxes)):
         ymin, xmin, ymax, xmax = boxes[i, ...]
-        print("Boxes: ", boxes[i, ...])
-        w = (xmax- xmin)/2
-        h = (ymax- ymin)/2
-        cx = xmin + w
-        cy = ymin + h
 
-        print("cx %d,cy %d,w %d ,h %d  " %(cx,cy,w,h))
-        cropped = image.crop( (xmin, ymin,  xmax, ymax))#(xmin, ymin, w, h))
-        #croped_img = image[int(ymin):int(ymax), int(xmin):int(xmax)]
-        print(cropped.size)
+        cropped = rgb_image[int(ymin): int(ymax), int(xmin):int(xmax), :]
+
         cropped_imgs.append(cropped)
-        #cropped.save(RESULT_DIR+"cropped"+ str(i)+".jpg", "JPEG")
+        # cv2.imshow("cropped", cropped)
+        # cv2.waitKey(0)
+        print("Cropped shape: ", cropped.shape)
+        if 1:
+            if not os.path.exists(RESULT_DIR):
+                os.makedirs(RESULT_DIR)
+            cv2.imwrite(RESULT_DIR + "cropped" + str(i) + ".jpg", cv2.cvtColor(cropped, cv2.COLOR_RGB2BGR))
     return cropped_imgs
 
+
 def match_histogram(cropped_imgs):
-    ''' Classification using histogram color matching '''
-    results=[]
+    ''' Traffic light classification using histogram color matching '''
+    results = []
     for cropped_img in cropped_imgs:
-        w, h = cropped_img.size
-        print("Mode: ", cropped_img.mode)
-        # binary warped image has 3 channels
-        np_cropped = np.array(cropped_img)
-        print("cropped img shape: ",np_cropped.shape)
-        RGB=[0.,0.,0.]
+        BGR = [0., 0., 0.]
         # Show numpy histogram
-        if len(np_cropped.shape) == 0:
+        if cropped_img.shape[0] == 0:
+            print()
             return
 
         for ch in range(3):
-            flatten_ch0 = np_cropped[:,:,ch].flatten()
-            color_freq=collections.Counter(flatten_ch0)
+            flatten_ch0 = cropped_img[:, :, ch].flatten()
+            color_freq = collections.Counter(flatten_ch0)
 
             total_val = np.sum(np.array(list(color_freq.values())))
-
             sorted_colors_tp = list(sorted(color_freq.items()))
 
             # calculate only the frequency of the 250-255 values
-            for i in range(250,256):
-                RGB[ch] = RGB[ch] + color_freq[i]
+            for i in range(250, 256):
+                BGR[ch] = BGR[ch] + color_freq[i]
 
             # Normalization
-            RGB[ch] = float(RGB[ch])/total_val
+            BGR[ch] = float(BGR[ch]) / total_val
 
             if VIZ_DEBUG:
                 if ch == 0:
-                    strcolor="r"
-                elif ch==1:
-                    strcolor="g"
+                    strcolor = "r"
+                elif ch == 1:
+                    strcolor = "g"
                 else:
                     strcolor = "b"
                 sorted_colors_tp = np.array(sorted_colors_tp)
-                plt.bar(sorted_colors_tp[:, 0], sorted_colors_tp[:, 1]/total_val, color=strcolor, label="ch"+str(ch))
+                plt.bar(sorted_colors_tp[:, 0], sorted_colors_tp[:, 1] /
+                        total_val, color=strcolor, label="ch" + str(ch))
         if VIZ_DEBUG:
             plt.legend()
             plt.show()
 
-        max_val = max(RGB)
-        max_idx = [i for i, ch in enumerate(RGB) if ch == max_val]
-        print("RGB: ",RGB)
+        max_val = max(BGR)
+        max_idx = [i for i, ch in enumerate(BGR) if ch == max_val]
+        print("BGR: ", BGR)
         #print("Max idx : %s with val %f " % (max_idx, max_val))
         yellow_thres = 0.02
 
-
-        if RGB[0] >yellow_thres and RGB[1] >yellow_thres and RGB[2] < 0.01:
-            print("Yellow")
+        if BGR[1] > yellow_thres and BGR[2] > yellow_thres and BGR[0] < 0.01:
             results.append(COLOR_TO_CLASS["Yellow"])
-        elif max_idx[0] == 0:
-            print("Red")
+        elif max_idx[0] == 2:
             results.append(COLOR_TO_CLASS["Red"])
         elif max_idx[0] == 1:
-            print("Green")
             results.append(COLOR_TO_CLASS["Green"])
         else:
             print("Unknown")
             results.append(COLOR_TO_CLASS["Unknown"])
+            # Not appending unknown
+            # results.append(COLOR_TO_CLASS["Unknown"])
 
         # Comparison to PIL histogram
         # ----------------------------------------
@@ -176,32 +198,42 @@ def match_histogram(cropped_imgs):
         # if VIZ_DEBUG:
         #     plt.plot(cropped_img.histogram())
         #     plt.show()
-    print("Final result: ", max(results))
-    return max(results)
+    return results
 
-class TLDetector(object):
+
+class TLClassifier(object):
     def __init__(self):
+        # Start code based on https://github.com/udacity/CarND-Object-Detection-Lab
         self.detection_graph = load_graph(SSD_GRAPH_FILE)
         # detection_graph = load_graph(RFCN_GRAPH_FILE)
         # detection_graph = load_graph(FASTER_RCNN_GRAPH_FILE)
 
         # The input placeholder for the image.
         # `get_tensor_by_name` returns the Tensor with the associated name in the Graph.
-        self.image_tensor = self.detection_graph.get_tensor_by_name('image_tensor:0')
+        self.image_tensor = self.detection_graph.get_tensor_by_name(
+            'image_tensor:0')
 
         # Each box represents a part of the image where a particular object was detected.
-        self.detection_boxes = self.detection_graph.get_tensor_by_name('detection_boxes:0')
+        self.detection_boxes = self.detection_graph.get_tensor_by_name(
+            'detection_boxes:0')
 
         # Each score represent how level of confidence for each of the objects.
         # Score is shown on the result image, together with the class label.
-        self.detection_scores = self.detection_graph.get_tensor_by_name('detection_scores:0')
+        self.detection_scores = self.detection_graph.get_tensor_by_name(
+            'detection_scores:0')
 
         # The classification of the object (integer id).
-        self.detection_classes = self.detection_graph.get_tensor_by_name('detection_classes:0')
+        self.detection_classes = self.detection_graph.get_tensor_by_name(
+            'detection_classes:0')
 
     def get_classification(self, image_path, DEBUG=False):
-        image = Image.open(image_path)
-        image_np = np.expand_dims(image, 0)
+        bgr_img = cv2.imread(image_path)
+
+        b, g, r = cv2.split(bgr_img)       # get b,g,r
+        rgb_img = cv2.merge([r, g, b])     # switch it to rgb
+
+        image_np = np.expand_dims(rgb_img, 0)
+
         with tf.Session(graph=self.detection_graph) as sess:
             # Actual detection.
             (boxes, scores, classes) = sess.run([self.detection_boxes, self.detection_scores, self.detection_classes],
@@ -212,54 +244,66 @@ class TLDetector(object):
             boxes = np.squeeze(boxes)
             scores = np.squeeze(scores)
             classes = np.squeeze(classes)
-
-            confidence_cutoff = 0.4
+            if DEBUG:
+                print("Scores: ", scores)
+                print("Classes: ", classes)
+            confidence_cutoff = 0.27
             # Filter boxes with a confidence score less than `confidence_cutoff`
-            boxes, scores, classes = filter_boxes(confidence_cutoff, boxes, scores, classes)
+            boxes, scores, classes = filter_boxes(
+                confidence_cutoff, boxes, scores, classes)
 
             # The current box coordinates are normalized to a range between 0 and 1.
             # This converts the coordinates actual location on the image.
-            width, height = image.size
+            height, width = rgb_img.shape[0], rgb_img.shape[1]
             box_coords = to_image_coords(boxes, height, width)
             if DEBUG:
-                print(scores)
-                print("---")
-                print(classes)
                 print("boxes: ", boxes)
-                print("Box coord: ",box_coords)
+                print("Box coord: ", box_coords)
 
 #            Cropped image
-            if len(box_coords)> 0:
-                image_np = np.squeeze(image_np)
-                cropped_imgs = crop_image(image, box_coords)
-                return match_histogram(cropped_imgs)
+            if len(box_coords) > 0:
+                cropped_imgs = crop_image(rgb_img, box_coords)
+                det_colors = match_histogram(cropped_imgs)
 
-            if DEBUG:
+                if det_colors is None:
+                    return 3
+
+                color_freq = collections.Counter(det_colors)
+                final_color = color_freq.most_common(1)[0]
+                print("Final result: %d, probs: %f" %
+                      (final_color[0], max(scores)))
+
+                bbox_img = draw_bboxes(rgb_img, box_coords, det_colors, scores)
+
+                if not os.path.exists(RESULT_DIR):
+                    os.makedirs(RESULT_DIR)
+                cv2.imwrite(RESULT_DIR + "test.jpg", cv2.cvtColor(bbox_img, cv2.COLOR_RGB2BGR))
+
+                return final_color[0]
+
+            # if DEBUG:
                 # Each class with be represented by a differently colored box
-                draw_boxes(image, box_coords, classes)
-                basename = os.path.basename(image_path)
-                image.save(RESULT_DIR+basename, "JPEG")
-
 
                 #plt.figure(figsize=(12, 8))
-                #plt.imshow(image)
+                # plt.imshow(image)
 
 
 @click.command()
 @click.argument('img_path')
 def main(img_path):
-    tlc = TLDetector()
+    tlc = TLClassifier()
     if not os.path.exists(RESULT_DIR):
         os.makedirs(RESULT_DIR)
 
     if os.path.isdir(img_path):
-        imgfiles = img_path +"/*.jpg"
+        imgfiles = img_path + "/*.jpg"
 
         for img_file in sorted(glob.glob(imgfiles)):
 
             tlc.get_classification(img_file, 0)
     else:
         tlc.get_classification(img_path)
+
 
 if __name__ == '__main__':
     main()
