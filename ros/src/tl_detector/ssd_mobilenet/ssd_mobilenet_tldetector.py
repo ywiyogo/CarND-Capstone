@@ -129,7 +129,7 @@ def match_histogram(cropped_imgs):
     ''' Traffic light classification using histogram color matching '''
     results = []
     for cropped_img in cropped_imgs:
-        BGR = [0., 0., 0.]
+        RGB = [0., 0., 0.]
         # Show numpy histogram
         if cropped_img.shape[0] == 0:
             print()
@@ -144,10 +144,10 @@ def match_histogram(cropped_imgs):
 
             # calculate only the frequency of the 250-255 values
             for i in range(250, 256):
-                BGR[ch] = BGR[ch] + color_freq[i]
+                RGB[ch] = RGB[ch] + color_freq[i]
 
             # Normalization
-            BGR[ch] = float(BGR[ch]) / total_val
+            RGB[ch] = float(RGB[ch]) / total_val
 
             if VIZ_DEBUG:
                 if ch == 0:
@@ -163,20 +163,21 @@ def match_histogram(cropped_imgs):
             plt.legend()
             plt.show()
 
-        max_val = max(BGR)
-        max_idx = [i for i, ch in enumerate(BGR) if ch == max_val]
-        print("BGR: ", BGR)
+        max_val = max(RGB)
+        max_idx = [i for i, ch in enumerate(RGB) if ch == max_val]
+        print("RGB: ", RGB)
         #print("Max idx : %s with val %f " % (max_idx, max_val))
-        yellow_thres = 0.02
-
-        if BGR[1] > yellow_thres and BGR[2] > yellow_thres and BGR[0] < 0.01:
-            results.append(COLOR_TO_CLASS["Yellow"])
-        elif max_idx[0] == 2:
-            results.append(COLOR_TO_CLASS["Red"])
+        yellow_thres_ratio = 1.5
+        redyellow_ratio = RGB[0] / RGB[1]
+        if RGB[2] < 0.01:
+            if redyellow_ratio > yellow_thres_ratio:
+                results.append(COLOR_TO_CLASS["Red"])
+            else:
+                results.append(COLOR_TO_CLASS["Yellow"])
         elif max_idx[0] == 1:
             results.append(COLOR_TO_CLASS["Green"])
         else:
-            print("Unknown")
+            print("Unknown, RGB: ", RGB)
             results.append(COLOR_TO_CLASS["Unknown"])
             # Not appending unknown
             # results.append(COLOR_TO_CLASS["Unknown"])
@@ -226,7 +227,7 @@ class TLClassifier(object):
         self.detection_classes = self.detection_graph.get_tensor_by_name(
             'detection_classes:0')
 
-    def get_classification(self, image_path, DEBUG=False):
+    def get_classification(self, image_path, DEBUG=True):
         bgr_img = cv2.imread(image_path)
 
         b, g, r = cv2.split(bgr_img)       # get b,g,r
