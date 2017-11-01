@@ -167,13 +167,21 @@ def match_histogram(cropped_imgs):
         max_idx = [i for i, ch in enumerate(RGB) if ch == max_val]
         #print("RGB: ", RGB)
         #print("Max idx : %s with val %f " % (max_idx, max_val))
-        yellow_thres_ratio = 1.5
-        redyellow_ratio = RGB[0] / RGB[1]
-        if RGB[2] < 0.01:
-            if redyellow_ratio > yellow_thres_ratio:
+        red_thres_ratio = 1.1
+        yellow_thres_ratio = 0.3
+        blue_thres = 0.1
+        if RGB[1] > 0.:
+            redyellow_ratio = RGB[0] / RGB[1]
+        else:
+            redyellow_ratio = 10 # big enough for the rati
+
+        if RGB[2] < blue_thres:
+            if redyellow_ratio > red_thres_ratio:
                 results.append(COLOR_TO_CLASS["Red"])
-            else:
+            elif redyellow_ratio < red_thres_ratio and redyellow_ratio > yellow_thres_ratio:
                 results.append(COLOR_TO_CLASS["Yellow"])
+            else:
+                results.append(COLOR_TO_CLASS["Green"])
         elif max_idx[0] == 1:
             results.append(COLOR_TO_CLASS["Green"])
         else:
