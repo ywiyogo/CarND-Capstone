@@ -1,17 +1,12 @@
-from styx_msgs.msg import TrafficLight
-from scipy.misc import imresize
 import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
 from PIL import Image
 from PIL import ImageDraw
 from PIL import ImageColor
-import time
-from scipy.stats import norm
+import click
 import os
-from scipy.misc import imread
-from scipy.misc import imshow, imsave
-from scipy.misc import imresize
+import glob
 import collections
 
 # Frozen inference graph files.
@@ -107,9 +102,10 @@ def match_histogram(cropped_imgs):
     results=[]
     for cropped_img in cropped_imgs:
         w, h = cropped_img.size
+        print("Mode: ", cropped_img.mode)
         # binary warped image has 3 channels
         np_cropped = np.array(cropped_img)
-
+        print("cropped img shape: ",np_cropped.shape)
         RGB=[0.,0.,0.]
         # Show numpy histogram
         if len(np_cropped.shape) == 0:
@@ -226,6 +222,9 @@ class TLDetector(object):
             width, height = image.size
             box_coords = to_image_coords(boxes, height, width)
             if DEBUG:
+                print(scores)
+                print("---")
+                print(classes)
                 print("boxes: ", boxes)
                 print("Box coord: ",box_coords)
 
@@ -244,3 +243,23 @@ class TLDetector(object):
 
                 #plt.figure(figsize=(12, 8))
                 #plt.imshow(image)
+
+
+@click.command()
+@click.argument('img_path')
+def main(img_path):
+    tlc = TLDetector()
+    if not os.path.exists(RESULT_DIR):
+        os.makedirs(RESULT_DIR)
+
+    if os.path.isdir(img_path):
+        imgfiles = img_path +"/*.jpg"
+
+        for img_file in sorted(glob.glob(imgfiles)):
+
+            tlc.get_classification(img_file, 0)
+    else:
+        tlc.get_classification(img_path)
+
+if __name__ == '__main__':
+    main()
