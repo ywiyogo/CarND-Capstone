@@ -235,6 +235,9 @@ class TLClassifier(object):
         self.detection_classes = self.detection_graph.get_tensor_by_name(
             'detection_classes:0')
 
+        self.sess = tf.Session(graph=self.detection_graph)
+        #summary_writer = tf.summary.FileWriter("./logs", sess.graph)
+
     def get_classification(self, bgr_img, DEBUG=False):
 
         b, g, r = cv2.split(bgr_img)       # get b,g,r
@@ -242,52 +245,54 @@ class TLClassifier(object):
 
         image_np = np.expand_dims(rgb_img, 0)
 
-        with tf.Session(graph=self.detection_graph) as sess:
-            # Actual detection.
-            (boxes, scores, classes) = sess.run([self.detection_boxes, self.detection_scores, self.detection_classes],
-                                                feed_dict={self.image_tensor: image_np})
-            summary_writer = tf.summary.FileWriter("./logs", sess.graph)
+        # Actual detection.
+        (boxes, scores, classes) = self.sess.run([self.detection_boxes, self.detection_scores, self.detection_classes],
+                                            feed_dict={self.image_tensor: image_np})
 
-            # Remove unnecessary dimensions
-            boxes = np.squeeze(boxes)
-            scores = np.squeeze(scores)
-            classes = np.squeeze(classes)
-            if DEBUG:
-                print("Scores: ", scores)
-                print("Classes: ", classes)
-            confidence_cutoff = 0.27
-            # Filter boxes with a confidence score less than `confidence_cutoff`
-            boxes, scores, classes = filter_boxes(
-                confidence_cutoff, boxes, scores, classes)
+        # Remove unnecessary dimensions
+        boxes = np.squeeze(boxes)
+        scores = np.squeeze(scores)
+        classes = np.squeeze(classes)
+        if DEBUG:
+            print("Scores: ", scores)
+            print("Classes: ", classes)
+        confidence_cutoff = 0.27
+        # Filter boxes with a confidence score less than `confidence_cutoff`
+        boxes, scores, classes = filter_boxes(
+            confidence_cutoff, boxes, scores, classes)
 
-            # The current box coordinates are normalized to a range between 0 and 1.
-            # This converts the coordinates actual location on the image.
-            height, width = rgb_img.shape[0], rgb_img.shape[1]
-            box_coords = to_image_coords(boxes, height, width)
-            if DEBUG:
-                print("boxes: ", boxes)
-                print("Box coord: ", box_coords)
+        # The current box coordinates are normalized to a range between 0 and 1.
+        # This converts the coordinates actual location on the image.
+        height, width = rgb_img.shape[0], rgb_img.shape[1]
+        box_coords = to_image_coords(boxes, height, width)
+        if DEBUG:
+            print("boxes: ", boxes)
+            print("Box coord: ", box_coords)
 
 #            Cropped image
-            if len(box_coords) > 0:
-                cropped_imgs = crop_image(rgb_img, box_coords)
-                det_colors = match_histogram(cropped_imgs)
+        if len(box_coords) > 0:
+            cropped_imgs = crop_image(rgb_img, box_coords)
+            det_colors = match_histogram(cropped_imgs)
 
-                if det_colors is None:
-                    return 3
+            if det_colors is None:
+                return 3
 
-                color_freq = collections.Counter(det_colors)
-                final_color = color_freq.most_common(1)[0]
-                print("Final result: %d, probs: %f" %
-                      (final_color[0], max(scores)))
+            color_freq = collections.Counter(det_colors)
+            final_color = color_freq.most_common(1)[0]
 
-                bbox_img = draw_bboxes(rgb_img, box_coords, det_colors, scores)
+            max_prob = max(scores)
+            print("Final result: %d, probs: %f" %
+                  (final_color[0], max_prob))
 
-                if DEBUG:
-                    if not os.path.exists(RESULT_DIR):
-                        os.makedirs(RESULT_DIR)
-                    cv2.imwrite(RESULT_DIR + "ros_detection.jpg", cv2.cvtColor(bbox_img, cv2.COLOR_RGB2BGR))
-                    cv2.imshow("bla", cv2.cvtColor(bbox_img, cv2.COLOR_RGB2BGR))
-                    cv2.waitKey(0)
-                return final_color[0]
+            bbox_img = draw_bboxes(rgb_img, box_coords, det_colors, scores)
+
+            if DEBUG:
+                if not os.path.exists(RESULT_DIR):
+                    os.makedirs(RESULT_DIR)
+                cv2.imwrite(RESULT_DIR + "ros_detection.jpg", cv2.cvtColor(bbox_img, cv2.COLOR_RGB2BGR))
+                cv2.imshow("bla", cv2.cvtColor(bbox_img, cv2.COLOR_RGB2BGR))
+                cv2.waitKey(0)
+            return final_color[0], max_prob
+        else:
+            return 3, 0
 

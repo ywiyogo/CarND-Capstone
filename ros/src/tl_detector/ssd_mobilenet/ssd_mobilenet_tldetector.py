@@ -7,6 +7,7 @@ from scipy.stats import norm
 import os
 import collections
 import click
+import glob
 
 # Frozen inference graph files.
 SSD_GRAPH_FILE = os.getcwd() + \
@@ -247,7 +248,7 @@ class TLClassifier(object):
             # Actual detection.
             (boxes, scores, classes) = sess.run([self.detection_boxes, self.detection_scores, self.detection_classes],
                                                 feed_dict={self.image_tensor: image_np})
-            summary_writer = tf.summary.FileWriter("./logs", sess.graph)
+            #summary_writer = tf.summary.FileWriter("./logs", sess.graph)
 
             # Remove unnecessary dimensions
             boxes = np.squeeze(boxes)

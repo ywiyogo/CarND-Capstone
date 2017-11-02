@@ -15,7 +15,7 @@ from scipy import spatial
 from scipy.misc import imshow
 from scipy.misc import imsave
 
-STATE_COUNT_THRESHOLD = 3
+
 GET_TRAINING_DATA = False        # Set to True if you want to save training data
 SIM_DATA_PATH = os.getcwd()+ "/light_classification/data/simulator/"
 
@@ -42,6 +42,7 @@ class TLDetector(object):
         self.last_state = TrafficLight.UNKNOWN
         self.last_wp = -1
         self.state_count = 0
+        self.state_count_threshold = 3
 
         sub1 = rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
         sub2 = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
@@ -118,7 +119,7 @@ class TLDetector(object):
             self.state_count = 0
             self.state = state
             #print("TL state: ", state)
-        elif self.state_count >= STATE_COUNT_THRESHOLD:
+        elif self.state_count >= self.state_count_threshold:
             self.last_state = self.state
             light_wp = light_wp if state == TrafficLight.RED else -1
             #print("RED light wp_index: ", light_wp)
@@ -229,8 +230,14 @@ class TLDetector(object):
         #TODO use light location to zoom in on traffic light in image
 
         #Get classification
-        state = self.light_classifier.get_classification(cv_image)
+        state, probability = self.light_classifier.get_classification(cv_image)
 
+        if probability >0.9:
+            self.state_count_threshold = 1
+        elif probability >0.6:
+            self.state_count_threshold = 2
+        else:
+            self.state_count_threshold = 3
 
         # Get training data set
         if GET_TRAINING_DATA:
