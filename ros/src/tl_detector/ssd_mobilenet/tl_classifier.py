@@ -21,10 +21,10 @@ COLOR_TO_CLASS = {"Red": 0,
                   "Yellow": 1,
                   "Green": 2,
                   "Unknown": 3}
-CLASS_TO_COLOR = {0: (0, 0, 255),
-                  1: (0, 255, 255),
-                  2: (0, 255, 0),
-                  3: (19, 139, 69)}
+CLASS_TO_RGBCOLOR = {0: (255, 0, 0),
+                     1: (255, 255, 0),
+                     2: (0, 255, 0),
+                     3: (19, 139, 69)}
 # ==============
 # Utility funcs
 # ==============
@@ -77,19 +77,19 @@ def draw_bboxes(img, bboxes, classes, probs=None):
         ymax = int(box[2])
 
         # Draw only valid color
-        if classes[i]<3:
+        if classes[i] < 3:
             cv2.rectangle(img, (xmin, ymin), (xmax, ymax),
-                          CLASS_TO_COLOR[classes[i]], 2)
+                          CLASS_TO_RGBCOLOR[classes[i]], 2)
 
             if probs is not None:
                 # write the detection probability on the bbox:
                 # # make the top line of the bbox thicker:
                 cv2.rectangle(img, (xmin, ymin), (xmax, ymin - 12),
-                              CLASS_TO_COLOR[classes[i]], -1)
+                              CLASS_TO_RGBCOLOR[classes[i]], -1)
                 # # write the probaility in the top line of the bbox:
                 prob_string = "%.2f" % probs[i]
                 cv2.putText(img, prob_string, (int(xmin) + 2, int(ymin) - 2), 2, 0.4,
-                            (255, 255, 255), 2)
+                            (255, 255, 255), 1)
 
     img_with_bboxes = img
     return img_with_bboxes
@@ -167,26 +167,28 @@ def match_histogram(cropped_imgs):
         max_idx = [i for i, ch in enumerate(RGB) if ch == max_val]
         #print("RGB: ", RGB)
         #print("Max idx : %s with val %f " % (max_idx, max_val))
-        red_thres_ratio = 1.1
-        yellow_thres_ratio = 0.3
-        blue_thres = 0.1
-        if RGB[1] > 0.:
-            redyellow_ratio = RGB[0] / RGB[1]
-        else:
-            redyellow_ratio = 10 # big enough for the rati
+        red_thres_ratio = 1.0
+        green_thres_ratio = 1.0
+        yellow_thres_ratio = 0.4
+        blue_thres = 0.06
+
+        redgreen_ratio = RGB[0] / RGB[1] if RGB[1] > 0.else 10
+
+        greenblue_ratio = RGB[1] / RGB[2] if RGB[2] > 0.else 10
 
         if RGB[2] < blue_thres:
-            if redyellow_ratio > red_thres_ratio:
+            if redgreen_ratio > red_thres_ratio:
                 results.append(COLOR_TO_CLASS["Red"])
-            elif redyellow_ratio < red_thres_ratio and redyellow_ratio > yellow_thres_ratio:
+            elif redgreen_ratio >= yellow_thres_ratio:
                 results.append(COLOR_TO_CLASS["Yellow"])
             else:
                 results.append(COLOR_TO_CLASS["Green"])
-        elif max_idx[0] == 1:
-            results.append(COLOR_TO_CLASS["Green"])
         else:
-            print("Unknown, RGB: ", RGB)
-            results.append(COLOR_TO_CLASS["Unknown"])
+            if greenblue_ratio > green_thres_ratio:
+                results.append(COLOR_TO_CLASS["Green"])
+            else:
+                results.append(COLOR_TO_CLASS["Yellow"])
+
             # Not appending unknown
             # results.append(COLOR_TO_CLASS["Unknown"])
 
@@ -269,7 +271,7 @@ class TLClassifier(object):
             print("boxes: ", boxes)
             print("Box coord: ", box_coords)
 
-#            Cropped image
+        #Cropped image
         if len(box_coords) > 0:
             cropped_imgs = crop_image(rgb_img, box_coords)
             det_colors = match_histogram(cropped_imgs)

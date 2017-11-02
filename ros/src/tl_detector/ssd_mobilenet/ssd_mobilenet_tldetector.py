@@ -21,10 +21,10 @@ COLOR_TO_CLASS = {"Red": 0,
                   "Yellow": 1,
                   "Green": 2,
                   "Unknown": 3}
-CLASS_TO_COLOR = {0: (0, 0, 255),
-                  1: (0, 255, 255),
-                  2: (0, 255, 0),
-                  3: (19, 139, 69)}
+CLASS_TO_RGBCOLOR = {0: (255, 0, 0),
+                     1: (255, 255, 0),
+                     2: (0, 255, 0),
+                     3: (19, 139, 69)}
 # ==============
 # Utility funcs
 # ==============
@@ -77,19 +77,19 @@ def draw_bboxes(img, bboxes, classes, probs=None):
         ymax = int(box[2])
 
         # Draw only valid color
-        if classes[i]<3:
+        if classes[i] < 3:
             cv2.rectangle(img, (xmin, ymin), (xmax, ymax),
-                          CLASS_TO_COLOR[classes[i]], 2)
+                          CLASS_TO_RGBCOLOR[classes[i]], 2)
 
             if probs is not None:
                 # write the detection probability on the bbox:
                 # # make the top line of the bbox thicker:
                 cv2.rectangle(img, (xmin, ymin), (xmax, ymin - 12),
-                              CLASS_TO_COLOR[classes[i]], -1)
+                              CLASS_TO_RGBCOLOR[classes[i]], -1)
                 # # write the probaility in the top line of the bbox:
                 prob_string = "%.2f" % probs[i]
                 cv2.putText(img, prob_string, (int(xmin) + 2, int(ymin) - 2), 2, 0.4,
-                            (255, 255, 255), 2)
+                            (255, 255, 255), 1)
 
     img_with_bboxes = img
     return img_with_bboxes
@@ -122,7 +122,8 @@ def crop_image(rgb_image, boxes):
         if 1:
             if not os.path.exists(RESULT_DIR):
                 os.makedirs(RESULT_DIR)
-            cv2.imwrite(RESULT_DIR + "cropped" + str(i) + ".jpg", cv2.cvtColor(cropped, cv2.COLOR_RGB2BGR))
+            cv2.imwrite(RESULT_DIR + "cropped" + str(i) + ".jpg",
+                        cv2.cvtColor(cropped, cv2.COLOR_RGB2BGR))
     return cropped_imgs
 
 
@@ -168,26 +169,28 @@ def match_histogram(cropped_imgs):
         max_idx = [i for i, ch in enumerate(RGB) if ch == max_val]
         print("RGB: ", RGB)
         #print("Max idx : %s with val %f " % (max_idx, max_val))
-        red_thres_ratio = 1.1
-        yellow_thres_ratio = 0.3
-        blue_thres = 0.1
-        if RGB[1] > 0.:
-            redyellow_ratio = RGB[0] / RGB[1]
-        else:
-            redyellow_ratio = 10 # big enough for the rati
+        red_thres_ratio = 1.0
+        green_thres_ratio = 1.0
+        yellow_thres_ratio = 0.4
+        blue_thres = 0.06
+
+        redgreen_ratio = RGB[0] / RGB[1] if RGB[1] > 0.else 10
+
+        greenblue_ratio = RGB[1] / RGB[2] if RGB[2] > 0.else 10
 
         if RGB[2] < blue_thres:
-            if redyellow_ratio > red_thres_ratio:
+            if redgreen_ratio > red_thres_ratio:
                 results.append(COLOR_TO_CLASS["Red"])
-            elif redyellow_ratio < red_thres_ratio and redyellow_ratio > yellow_thres_ratio:
+            elif redgreen_ratio >= yellow_thres_ratio:
                 results.append(COLOR_TO_CLASS["Yellow"])
             else:
                 results.append(COLOR_TO_CLASS["Green"])
-        elif max_idx[0] == 1:
-            results.append(COLOR_TO_CLASS["Green"])
         else:
-            print("Unknown, RGB: ", RGB)
-            results.append(COLOR_TO_CLASS["Unknown"])
+            if greenblue_ratio > green_thres_ratio:
+                results.append(COLOR_TO_CLASS["Green"])
+            else:
+                results.append(COLOR_TO_CLASS["Yellow"])
+
             # Not appending unknown
             # results.append(COLOR_TO_CLASS["Unknown"])
 
@@ -236,6 +239,9 @@ class TLClassifier(object):
         self.detection_classes = self.detection_graph.get_tensor_by_name(
             'detection_classes:0')
 
+        self.sess = tf.Session(graph=self.detection_graph)
+        #summary_writer = tf.summary.FileWriter("./logs", sess.graph)
+
     def get_classification(self, image_path, DEBUG=True):
         bgr_img = cv2.imread(image_path)
 
@@ -244,58 +250,62 @@ class TLClassifier(object):
 
         image_np = np.expand_dims(rgb_img, 0)
 
-        with tf.Session(graph=self.detection_graph) as sess:
-            # Actual detection.
-            (boxes, scores, classes) = sess.run([self.detection_boxes, self.detection_scores, self.detection_classes],
-                                                feed_dict={self.image_tensor: image_np})
-            #summary_writer = tf.summary.FileWriter("./logs", sess.graph)
+        # Actual detection.
+        (boxes, scores, classes) = self.sess.run([self.detection_boxes, self.detection_scores, self.detection_classes],
+                                                 feed_dict={self.image_tensor: image_np})
+        #summary_writer = tf.summary.FileWriter("./logs", sess.graph)
 
-            # Remove unnecessary dimensions
-            boxes = np.squeeze(boxes)
-            scores = np.squeeze(scores)
-            classes = np.squeeze(classes)
-            if DEBUG:
-                print("Scores: ", scores)
-                print("Classes: ", classes)
-            confidence_cutoff = 0.27
-            # Filter boxes with a confidence score less than `confidence_cutoff`
-            boxes, scores, classes = filter_boxes(
-                confidence_cutoff, boxes, scores, classes)
+        # Remove unnecessary dimensions
+        boxes = np.squeeze(boxes)
+        scores = np.squeeze(scores)
+        classes = np.squeeze(classes)
+        if DEBUG:
+            print("Scores: ", scores)
+            print("Classes: ", classes)
+        confidence_cutoff = 0.27
+        # Filter boxes with a confidence score less than `confidence_cutoff`
+        boxes, scores, classes = filter_boxes(
+            confidence_cutoff, boxes, scores, classes)
 
-            # The current box coordinates are normalized to a range between 0 and 1.
-            # This converts the coordinates actual location on the image.
-            height, width = rgb_img.shape[0], rgb_img.shape[1]
-            box_coords = to_image_coords(boxes, height, width)
-            if DEBUG:
-                print("boxes: ", boxes)
-                print("Box coord: ", box_coords)
+        # The current box coordinates are normalized to a range between 0 and 1.
+        # This converts the coordinates actual location on the image.
+        height, width = rgb_img.shape[0], rgb_img.shape[1]
+        box_coords = to_image_coords(boxes, height, width)
+        if DEBUG:
+            print("boxes: ", boxes)
+            print("Box coord: ", box_coords)
 
-#            Cropped image
-            if len(box_coords) > 0:
-                cropped_imgs = crop_image(rgb_img, box_coords)
-                det_colors = match_histogram(cropped_imgs)
+        # Cropped image
+        basename = os.path.basename(image_path)
+        if len(box_coords) > 0:
+            cropped_imgs = crop_image(rgb_img, box_coords)
+            det_colors = match_histogram(cropped_imgs)
 
-                if det_colors is None:
-                    return 3
+            if det_colors is None:
+                return 3
 
-                color_freq = collections.Counter(det_colors)
-                final_color = color_freq.most_common(1)[0]
-                print("Final result: %d, probs: %f" %
-                      (final_color[0], max(scores)))
+            color_freq = collections.Counter(det_colors)
+            final_color = color_freq.most_common(1)[0]
+            print("Final result: %d, probs: %f" %
+                  (final_color[0], max(scores)))
 
-                bbox_img = draw_bboxes(rgb_img, box_coords, det_colors, scores)
+            bbox_img = draw_bboxes(rgb_img, box_coords, det_colors, scores)
 
-                if not os.path.exists(RESULT_DIR):
-                    os.makedirs(RESULT_DIR)
-                cv2.imwrite(RESULT_DIR + "test.jpg", cv2.cvtColor(bbox_img, cv2.COLOR_RGB2BGR))
+            if not os.path.exists(RESULT_DIR):
+                os.makedirs(RESULT_DIR)
 
-                return final_color[0]
+            cv2.imwrite(RESULT_DIR + "res_" + basename + ".jpg",
+                        cv2.cvtColor(bbox_img, cv2.COLOR_RGB2BGR))
 
-            # if DEBUG:
-                # Each class with be represented by a differently colored box
+            return final_color[0]
+        else:
+            print("No detection for img", basename)
+            return 3, 0
+        # if DEBUG:
+            # Each class with be represented by a differently colored box
 
-                #plt.figure(figsize=(12, 8))
-                # plt.imshow(image)
+            #plt.figure(figsize=(12, 8))
+            # plt.imshow(image)
 
 
 @click.command()

@@ -28,6 +28,22 @@ In the planning subsystem, we implement a waypoint updater for updating the next
 |Martin Kretzer | Germany | team member|
 |Yongkie Wiyogo | Germany | team member|
 
+## Traffic Light Detection
+
+We researched the state-of-the-art of the fast detection algorithm using deep learning approach. We found out several interesting articles and papers about object detection in general and also for our traffic light detection case. We studied these articles and papers:
+
+* [SqueezeNet](https://arxiv.org/pdf/1602.07360.pdf)
+* [SqueezeDet](https://arxiv.org/pdf/1612.01051.pdf)
+* [Faster R-CNN and the anchor concept](https://arxiv.org/pdf/1506.01497.pdf)
+* [Single Shot Multibox Detector (SSD)](https://arxiv.org/pdf/1512.02325.pdf)
+* [MobileNets](https://arxiv.org/pdf/1704.04861.pdf)
+* [D.Brailovsky: The winner of Nexar Traffic Light Challange](https://medium.freecodecamp.org/recognizing-traffic-lights-with-deep-learning-23dae23287cc)
+* [A.Sarkis article](https://medium.com/@anthony_sarkis/self-driving-cars-implementing-real-time-traffic-light-detection-and-classification-in-2017-7d9ae8df1c58)
+
+We tried SqueezeNet in order detect and classify the traffic light color based on the article from D.Brailovsky above. We tried to train SqeeuzeNet and the LARA dataset. However, we cannot achieve a good result. Our second approach was to implement the SqueezeDet with the Bosch small traffic light dataset, Udacity bag files, and simulator image dataset. Again, we failed to adapt and integrate this model.
+
+Our last approach uses SSD and MobileNets with COCO dataset. The pre-trained TensorFlow model of this approach can be downloaded from this [repository](https://github.com/tensorflow/models/blob/master/research/object_detection/g3doc/detection_model_zoo.md). After the detection, we crop the images from the resulting bounding boxes. The light color classification is performed by performing a histogram color matching algorithm.
+
 ## Getting Started
 ### Installation 
 
