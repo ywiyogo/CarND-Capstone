@@ -22,7 +22,7 @@ In the planning subsystem, we implement a waypoint updater for updating the next
 
 | Name | Location | Function |
 |:---:|:---:|:---:|
-|Dongping Xie| Germany | team lead|
+|Dongping Xie| Germany | team leader|
 |David Browne | South Africa | team member|
 |Klemens Esterle  | Germany |team member|
 |Martin Kretzer | Germany | team member|
@@ -44,9 +44,10 @@ We tried SqueezeNet in order detect and classify the traffic light color based o
 
 Our last approach uses SSD and MobileNets with COCO dataset. The pre-trained TensorFlow model of this approach can be downloaded from this [repository](https://github.com/tensorflow/models/blob/master/research/object_detection/g3doc/detection_model_zoo.md). After the detection, we crop the images from the resulting bounding boxes. The light color classification is performed by performing a histogram color matching algorithm.
 
-An example result from the real video of the Udacity car can be seen below:
+Our result from a real video of the Udacity car can be seen below:
 <p align="center">
-![Detection result][gif1]
+  <img src="./imgs/udacity_test1.gif" 
+alt="Traffic light detection result" border="4" /></a>
 </p>
 
 ## Getting Started
@@ -70,6 +71,10 @@ An example result from the real video of the Udacity car can be seen below:
 ### Usage
 
 1. Clone the project repository
+```bash
+git clone https://github.com/sdc-team-southern-germany/CarND-Capstone.git
+```
+or from the original repository:
 ```bash
 git clone https://github.com/udacity/CarND-Capstone.git
 ```
