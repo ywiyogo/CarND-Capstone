@@ -1,11 +1,14 @@
 from styx_msgs.msg import TrafficLight
+from scipy.misc import imresize
 import tensorflow as tf
-import helper
-import cv2
 import os
 import numpy as np
+
 # Get the model directory
 MODEL_DIR = os.getcwd()+ "/light_classification/model"
+
+WIDTH  = 227
+HEIGHT = 227
 
 
 class TLClassifier(object):
@@ -31,18 +34,33 @@ class TLClassifier(object):
             int: ID of traffic light color (specified in styx_msgs/TrafficLight)
 
         """
+        def resize_image(image):
+            image = imresize(image, (WIDTH, HEIGHT))
+            return image
+
+        def calc_softmax(x):
+            """Compute softmax values for each sets of scores in x."""
+            return np.exp(x)/np.sum(np.exp(x), axis=0)
+
+        #def preprocess(image, mean_pixel):
+            #swap_img = np.array(image)
+            #img_out = np.array(swap_img)
+            #img_out[:, :, 0] = swap_img[:, :, 2]
+            #img_out[:, :, 2] = swap_img[:, :, 0]
+            #return img_out - mean_pixel
+
         #TODO implement light color prediction
         
         #self.saver.restore(self.sess, tf.train.latest_checkpoint(MODEL_DIR))
         #print("Image: ", image.shape)
-        resized_img = helper.resize_image(image)
+        resized_img = resize_image(image)
         #print("resized shape: ", resized_img.shape)
 
         expanded_img = np.expand_dims(resized_img, axis=0)
 
-        mean_pixel = np.array([104.006, 116.669, 122.679], dtype=np.float32)
-        #preproc_img = helper.preprocess(resized_img, mean_pixel)
-        #print('--------------- Getting classification --------------')
+        #mean_pixel = np.array([104.006, 116.669, 122.679], dtype=np.float32)
+        #preproc_img = preprocess(resized_img, mean_pixel)
+
         # Placeholders
         relu_op = self.graph.get_tensor_by_name('Classifier/Relu_2:0')
 
@@ -57,7 +75,7 @@ class TLClassifier(object):
         if all(val==predictions[0] for val in predictions):
             return TrafficLight.UNKNOWN
 
-        softmax = helper.calc_softmax(predictions)
+        softmax = calc_softmax(predictions)
         max_index = np.argmax(softmax)
         #print("Softmax: ", softmax)
 

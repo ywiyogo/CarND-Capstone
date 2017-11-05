@@ -6,15 +6,16 @@ from styx_msgs.msg import TrafficLightArray, TrafficLight
 from styx_msgs.msg import Lane
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
-from light_classification.tl_classifier import TLClassifier
+from ssd_mobilenet.tl_classifier import TLClassifier
 import tf
-import cv2
 import yaml
 import os
 import numpy as np
 from scipy import spatial
+from scipy.misc import imshow
+from scipy.misc import imsave
 
-STATE_COUNT_THRESHOLD = 3
+
 GET_TRAINING_DATA = False        # Set to True if you want to save training data
 SIM_DATA_PATH = os.getcwd()+ "/light_classification/data/simulator/"
 
@@ -41,6 +42,7 @@ class TLDetector(object):
         self.last_state = TrafficLight.UNKNOWN
         self.last_wp = -1
         self.state_count = 0
+        self.state_count_threshold = 3
 
         sub1 = rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
         sub2 = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
@@ -116,8 +118,8 @@ class TLDetector(object):
         if self.state != state:
             self.state_count = 0
             self.state = state
-            print("TL state: ", state)
-        elif self.state_count >= STATE_COUNT_THRESHOLD:
+            #print("TL state: ", state)
+        elif self.state_count >= self.state_count_threshold:
             self.last_state = self.state
             light_wp = light_wp if state == TrafficLight.RED else -1
             #print("RED light wp_index: ", light_wp)
@@ -220,8 +222,7 @@ class TLDetector(object):
         # Display camera image
         enable_imshow = False    #activate to see the camera image
         if enable_imshow:
-            cv2.imshow("Image window", cv_image)
-            cv2.waitKey(1)
+            scipy.misc.imshow(images[0])
 
         # Commented out for testing...
         #x, y = self.project_to_image_plane(light.pose.pose.position)
@@ -229,8 +230,14 @@ class TLDetector(object):
         #TODO use light location to zoom in on traffic light in image
 
         #Get classification
-        state = self.light_classifier.get_classification(cv_image)
+        state, probability = self.light_classifier.get_classification(cv_image)
 
+        if probability >0.9:
+            self.state_count_threshold = 1
+        elif probability >0.6:
+            self.state_count_threshold = 2
+        else:
+            self.state_count_threshold = 3
 
         # Get training data set
         if GET_TRAINING_DATA:
@@ -272,7 +279,7 @@ class TLDetector(object):
 
                     if self.detected_tlight != self.cust_tlights[ind]:
                         self.detected_tlight = self.cust_tlights[ind]
-                        print("[TLD] TL %d found, A front distance to current pose: %f, waypoint index: %d" % (ind, dist, light))
+                        print("[TLD] TL %d found %dm ahead of current pose at waypoint index %d" % (ind, dist, light))
             else:
                 self.detected_tlight = None
                 self.state = TrafficLight.UNKNOWN
@@ -291,7 +298,8 @@ class TLDetector(object):
         """
 
         filename= SIM_DATA_PATH + "TL_"+str(self.counter)+".png"
-        cv2.imwrite(filename,image)
+        #cv2.imwrite(filename,image)
+        imsave(filename,image)
         if os.path.exists(SIM_DATA_PATH+"label.txt"):
             append_write = 'a' # append if already exists
         else:
