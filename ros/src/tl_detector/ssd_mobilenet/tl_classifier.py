@@ -170,7 +170,7 @@ def match_histogram(cropped_imgs):
         red_thres_ratio = 1.0
         green_thres_ratio = 1.0
         yellow_thres_ratio = 0.4
-        blue_thres = 0.06
+        blue_thres = 0.07
 
         redgreen_ratio = RGB[0] / RGB[1] if RGB[1] > 0.else 10
 

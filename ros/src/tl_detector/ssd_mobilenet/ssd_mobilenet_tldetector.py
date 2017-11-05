@@ -172,7 +172,7 @@ def match_histogram(cropped_imgs):
         red_thres_ratio = 1.0
         green_thres_ratio = 1.0
         yellow_thres_ratio = 0.4
-        blue_thres = 0.06
+        blue_thres = 0.07
 
         redgreen_ratio = RGB[0] / RGB[1] if RGB[1] > 0.else 10
 
@@ -300,6 +300,8 @@ class TLClassifier(object):
             return final_color[0]
         else:
             print("No detection for img", basename)
+            cv2.imwrite(RESULT_DIR + "res_" + basename + ".jpg",
+                        cv2.cvtColor(rgb_img, cv2.COLOR_RGB2BGR))
             return 3, 0
         # if DEBUG:
             # Each class with be represented by a differently colored box

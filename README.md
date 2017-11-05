@@ -44,6 +44,11 @@ We tried SqueezeNet in order detect and classify the traffic light color based o
 
 Our last approach uses SSD and MobileNets with COCO dataset. The pre-trained TensorFlow model of this approach can be downloaded from this [repository](https://github.com/tensorflow/models/blob/master/research/object_detection/g3doc/detection_model_zoo.md). After the detection, we crop the images from the resulting bounding boxes. The light color classification is performed by performing a histogram color matching algorithm.
 
+An example result from the real video of the Udacity car can be seen below:
+<p align="center">
+![Detection result][gif1]
+</p>
+
 ## Getting Started
 ### Installation 
 
@@ -112,3 +117,4 @@ roslaunch launch/site.launch
 
 [//]: # (Image References)
 [image1]: ./imgs/subsystem_arch.png
+[gif1]: ./imgs/udacity_test1.gif
